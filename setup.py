@@ -1,0 +1,19 @@
+from setuptools import setup, find_packages
+
+setup(
+    name='ABalytics',
+    version='1.0.0',
+    author='Janis Berneker',
+    packages=find_packages(),
+    license='LICENSE',
+    description='An A/B test analysis package.',
+    long_description=open('README.md').read(),
+    install_requires=[
+        'pandas>=1.5.2',
+        'scipy>=1.10.1',
+        'statsmodels>=0.14.1',
+        'scikit-posthocs>=0.8.1',
+        'pingouin>=0.5.4'
+    ],
+    python_requires='>=3.8',
+)

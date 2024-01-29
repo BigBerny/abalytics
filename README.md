@@ -42,13 +42,14 @@ analysis_results = get_results(
     variable_to_analyze = "order_value",
     group_column = "ab_test_group",
     p_value_threshold=0.05,
+    min_sample_size=25,
 )
 ```
 The `get_results` function will return an `AnalysisResults` object containing the following attributes:
 - `significant_results`: A list of results of the statistical significance tests.
 - `info`: A string containing information about the data if no results were found.
 - `sample_size`: The sample size of the data.
-- `boolean_flag`: A boolean flag indicating if the variable is boolean.
+- `dichotomous_flag`: A boolean flag indicating if the data is dichotomous (e.g. boolean).
 - `levene_flag`: A boolean flag indicating if Levene's test for homogeneity of variances is significant.
 - `gaussian_flag`: A boolean flag indicating if the data has a Gaussian distribution.
 
@@ -65,14 +66,15 @@ pretty_text = get_results_pretty_text(
     df,
     variable_to_analyze = "order_value",
     group_column = "ab_test_group",
-    identifiers=["A/B Test 1", "Mobile"],
     p_value_threshold=0.05,
+    min_sample_size=25,
     header=True,
+    identifiers=["A/B Test 1", "Mobile"],
 )
 
 print(pretty_text)
 ```
-This will print a formatted table with the results of the statistical significance tests, including sample size, flags for boolean, Levene's, and Gaussian, as well as the result of the test.
+Executing this code will output a neatly formatted table displaying the outcomes of the statistical significance tests. The table includes the sample size, indicators for Levene's test and Gaussian distribution, and the test results.
 
 A further example of how to use ABalytics can be found in `examples/example.py`.
 

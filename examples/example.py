@@ -10,4 +10,4 @@ data = {
 df = pd.DataFrame(data)
 
 print("A/B test example")
-print(abalytics.get_results_pretty_text(df, 'variable', 'group', identifiers=[f"A/B test example"]))
+print(abalytics.get_results_pretty_text(df, 'variable', 'group', identifiers=[f"A/B test example"], p_value_threshold=0.3))

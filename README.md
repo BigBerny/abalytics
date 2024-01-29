@@ -1,6 +1,6 @@
-# Abalytics
+# ABalytics
 
-Abalytics is a Python package designed for statistical analysis, particularly for assessing the significance of A/B testing results. Its goal is to provide high-quality analysis by selecting the appropriate statistical tests based on the type of variable being analyzed. It offers a suite of tools to perform various significance tests and posthoc analyses on experimental data.
+ABalytics is a Python package designed for statistical analysis, particularly for assessing the significance of A/B testing results. Its goal is to provide high-quality analysis by selecting the appropriate statistical tests based on the type of variable being analyzed. It offers a suite of tools to perform various significance tests and posthoc analyses on experimental data.
 
 ## Features
 
@@ -12,16 +12,16 @@ Abalytics is a Python package designed for statistical analysis, particularly fo
 
 ## Installation
 
-To install Abalytics, use pip:
+To install ABalytics, use pip:
 ```pip install abalytics```
 
 ## Usage
 
-To use Abalytics, import it:
+To use ABalytics, import it:
 ```import abalytics```
 
-An example of how to use Abalytics can be found in `examples/example.py`.
+An example of how to use ABalytics can be found in `examples/example.py`.
 
 ## Contributing
 
-Contributions to Abalytics are welcome.
+Contributions to ABalytics are welcome.

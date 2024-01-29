@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='ABalytics',
-    version='1.0.1',
+    version='1.0.2',
     author='Janis Berneker',
     packages=find_packages(),
     license='LICENSE',
@@ -16,4 +16,7 @@ setup(
         'pingouin>=0.5.4'
     ],
     python_requires='>=3.8',
+    project_urls={
+        'Repository': 'https://github.com/BigBerny/abalytics',
+    },
 )

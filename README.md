@@ -41,7 +41,6 @@ analysis_results = get_results(
     df,
     variable_to_analyze = "order_value",
     group_column = "ab_test_group",
-    identifiers=["A/B Test 1", "Mobile"],
     p_value_threshold=0.05,
 )
 ```

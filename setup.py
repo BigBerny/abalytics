@@ -6,7 +6,7 @@ setup(
     author='Janis Berneker',
     packages=find_packages(),
     license='LICENSE',
-    description='An A/B test analysis package.',
+    description='Advanced A/B Testing Statistical Analytics',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     install_requires=[

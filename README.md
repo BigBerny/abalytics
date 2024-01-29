@@ -13,16 +13,15 @@ Abalytics is a Python package designed for statistical analysis, particularly fo
 ## Installation
 
 To install Abalytics, use pip:
-pip install abalytics
+```pip install abalytics```
 
 ## Usage
 
 To use Abalytics, import it:
-import abalytics
+```import abalytics```
 
 An example of how to use Abalytics can be found in `examples/example.py`.
 
 ## Contributing
 
-Contributions to Abalytics are welcome. P
-
+Contributions to Abalytics are welcome.

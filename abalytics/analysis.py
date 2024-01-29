@@ -21,12 +21,16 @@ def get_results(df, variable_to_analyze, group_column, p_value_threshold=0.05):
 
     Parameters:
     df (pandas.DataFrame): The dataframe containing the data to analyze.
-    variable_to_analyze (str): The column name in df that are to be analyzed for statistical significance.
+    variable_to_analyze (str): The column name in df that is to be analyzed for statistical significance.
     group_column (str): The name of the column in df that contains the grouping variable.
     p_value_threshold (float, optional): The threshold for determining statistical significance. Defaults to 0.05.
 
     Returns:
-    tuple: A tuple containing the results of the statistical significance tests for each variable, and flags indicating boolean, Levene's test, and Gaussian distribution status.
+    tuple: A tuple containing the following elements:
+        - A list of results of the statistical significance tests.
+        - A boolean flag indicating if the variable is boolean.
+        - A boolean flag indicating if Levene's test for homogeneity of variances is significant.
+        - A boolean flag indicating if the data has a Gaussian distribution.
     """
     if p_value_threshold > 0.05:
         print(
@@ -90,7 +94,7 @@ def get_results_pretty_text_header(identifiers=None):
     identifiers (list of str, optional): A list of strings that are to be used for identifying the data. Defaults to [].
 
     Returns:
-    str: A formatted text string with the results of the statistical significance tests for each variable.
+    str: A formatted text string with the header of the pretty text table.
     """
     identifier_string = ""
     identifier_string_empty = ""
@@ -119,13 +123,13 @@ def get_results_pretty_text(
 
     Parameters:
     df (pandas.DataFrame): The dataframe containing the data to analyze.
-    variable_to_analyze (str): The column name in df that are to be analyzed for statistical significance.
+    variable_to_analyze (str): The column name in df that is to be analyzed for statistical significance.
     group_column (str): The name of the column in df that contains the grouping variable.
     identifiers (list of str, optional): A list of strings that are to be used for identifying the data. Defaults to [].
     p_value_threshold (float, optional): The threshold for determining statistical significance. Defaults to 0.05.
 
     Returns:
-    str: A formatted text string with the results of the statistical significance tests for each variable.
+    str: A formatted text string with the results of the statistical significance tests.
     """
 
     results, boolean_flag, levene_flag, gaussian_flag = get_results(

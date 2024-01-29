@@ -13,15 +13,70 @@ ABalytics is a Python package designed for statistical analysis, particularly fo
 ## Installation
 
 To install ABalytics, use pip:
-```pip install abalytics```
+```bash
+pip install abalytics
+```
 
 ## Usage
 
 To use ABalytics, import it:
-```import abalytics```
+```python
+import abalytics
+```
 
-An example of how to use ABalytics can be found in `examples/example.py`.
+### Analyzing Results
+
+To analyze your A/B testing results, you can use the `get_results` function. This function takes a pandas DataFrame, the name of the column containing the variable to analyze, the name of the column containing the grouping variable, and an optional p-value threshold (default is 0.05).
+
+Here's an example of how to use `get_results`:
+```python
+from abalytics.analysis import get_results
+import pandas as pd
+
+#Load your data into a pandas DataFrame
+df = pd.read_csv('your_data.csv')
+
+#Analyze the results
+analysis_results = get_results(
+    df,
+    variable_to_analyze = "order_value",
+    group_column = "ab_test_group",
+    identifiers=["A/B Test 1", "Mobile"],
+    p_value_threshold=0.05,
+)
+```
+The `get_results` function will return an `AnalysisResults` object containing the following attributes:
+- `significant_results`: A list of results of the statistical significance tests.
+- `info`: A string containing information about the data if no results were found.
+- `sample_size`: The sample size of the data.
+- `boolean_flag`: A boolean flag indicating if the variable is boolean.
+- `levene_flag`: A boolean flag indicating if Levene's test for homogeneity of variances is significant.
+- `gaussian_flag`: A boolean flag indicating if the data has a Gaussian distribution.
+
+### Generating Pretty Text Output
+
+For a formatted text output of your results, you can use the `get_results_pretty_text` function. This function takes the same parameters as `get_results` and additionally allows for identifiers to be included in the output and whether to include a header.
+
+Here's an example of how to use `get_results_pretty_text`:
+```python
+from abalytics.analysis import get_results_pretty_text
+
+# Assuming 'df' is your pandas DataFrame
+pretty_text = get_results_pretty_text(
+    df,
+    variable_to_analyze = "order_value",
+    group_column = "ab_test_group",
+    identifiers=["A/B Test 1", "Mobile"],
+    p_value_threshold=0.05,
+    header=True,
+)
+
+print(pretty_text)
+```
+This will print a formatted table with the results of the statistical significance tests, including sample size, flags for boolean, Levene's, and Gaussian, as well as the result of the test.
+
+A further example of how to use ABalytics can be found in `examples/example.py`.
 
 ## Contributing
 
-Contributions to ABalytics are welcome.
+Contributions to ABalytics are welcome. If you have suggestions for improvements or find any issues, please open an issue or submit a pull request.

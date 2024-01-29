@@ -57,7 +57,7 @@ def get_results(df, variable_to_analyze, group_column, p_value_threshold=0.05):
     levene_flag = False
     gaussian_flag = False
     # Check if there is enough data
-    if len(df) < 20 * df[group_column].nunique():
+    if len(df) < 25 * df[group_column].nunique():
         info = "not enough data"
     # Check if the variable is dichotomous (e.g. boolean)
     elif boolean_flag := is_boolean(df, variable_to_analyze):

@@ -2,12 +2,13 @@ from setuptools import setup, find_packages
 
 setup(
     name='ABalytics',
-    version='1.0.3',
+    version='1.1',
     author='Janis Berneker',
     packages=find_packages(),
     license='LICENSE',
     description='An A/B test analysis package.',
     long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
     install_requires=[
         'pandas>=1.5.2',
         'scipy>=1.10.1',

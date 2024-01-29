@@ -76,6 +76,8 @@ def get_chi_square_posthoc_results(df, group_column, variable, p_value_threshold
     p_values = []
 
     for group_a, group_b in group_combinations:
+        if 1 not in contingency_table.columns:
+            continue
         count = [contingency_table.loc[group_a, 1], contingency_table.loc[group_b, 1]]
         nobs = [
             contingency_table.loc[group_a].sum(),
@@ -100,6 +102,8 @@ def get_chi_square_posthoc_results(df, group_column, variable, p_value_threshold
             result_pretty = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.1f}%) vs {groups_info[1]['name']} ({groups_info[1]['mean']:.1f}%) (p={p_value:.3f})"
             posthoc_results.add_result(result_pretty, p_value, groups_info)
 
+    if len(p_values) == 0:
+        return posthoc_results
     # Apply Bonferroni correction
     corrected_alpha = p_value_threshold / len(p_values)
     posthoc_results.significant_results = [

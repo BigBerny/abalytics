@@ -1,4 +1,4 @@
-# ABalytics
+# ABalytics: Advanced A/B Testing Statistical Analysis
 
 ABalytics is a Python package designed for statistical analysis, particularly for assessing the significance of A/B testing results. Its goal is to provide high-quality analysis by selecting the appropriate statistical tests based on the type of variable being analyzed. It offers a suite of tools to perform various significance tests and posthoc analyses on experimental data.
 

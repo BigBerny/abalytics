@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='ABalytics',
+    name='abalytics',
     version='1.1.2',
     author='Janis Berneker',
     packages=find_packages(),

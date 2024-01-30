@@ -181,6 +181,7 @@ def get_results_pretty_text(
     min_sample_size: int = 25,
     header: bool = True,
     identifiers: Optional[List[str]] = None,
+    show_only_significant_results: bool = False,
 ):
     """
     Returns a text with the results of the statistical significance tests.
@@ -193,6 +194,7 @@ def get_results_pretty_text(
     min_sample_size (int, optional): The minimum sample size for the data. Defaults to 25.
     header (bool, optional): A boolean flag indicating if the header of the pretty text table should be included. Defaults to True.
     identifiers (list of str, optional): A list of strings that are to be used for identifying the data. Defaults to [].
+    show_only_significant_results (bool, optional): A boolean flag indicating if only significant results should be shown. Defaults to False.
 
     Returns:
     str: A formatted text string with the results of the statistical significance tests.
@@ -204,7 +206,6 @@ def get_results_pretty_text(
     significant_results = analysis_results.significant_results
     info = analysis_results.info
     sample_size = analysis_results.sample_size
-    dichotomous_flag = analysis_results.dichotomous_flag
     levene_flag = analysis_results.levene_flag
     gaussian_flag = analysis_results.gaussian_flag
 
@@ -235,9 +236,13 @@ def get_results_pretty_text(
                 output_results.append(
                     f"{len(identifier_string) * ' '}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}    {result.result_pretty_text}"
                 )
-    else:
+    elif not show_only_significant_results:
         output_results.append(
             f"{identifier_string}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}    {info}"
+        )
+    else:
+        output_results.append(
+            f"{identifier_string}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}"
         )
     output_string += "\n".join(output_results)
     return output_string

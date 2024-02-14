@@ -12,6 +12,12 @@ from .significance_tests import (
     get_games_howell_posthoc_results,
     get_tukeyhsd_posthoc_results,
     get_dunn_posthoc_results,
+    get_mcnemar_results,
+    get_repeated_measures_anova_significance,
+    get_repeated_measures_anova_posthoc,
+    get_wilcoxon_results,
+    get_friedman_significance,
+    get_nemenyi_results,
 )
 from typing import Optional, List
 
@@ -36,7 +42,7 @@ class AnalysisResults:
         self.gaussian_flag = gaussian_flag
 
 
-def get_results(
+def analyze_independent_groups(
     df: pd.DataFrame,
     variable_to_analyze: str,
     group_column: str,
@@ -108,7 +114,7 @@ def get_results(
                 )
         # Check if the data has Gaussian distribution, if not use non-parametric tests
         elif gaussian_flag := is_gaussian(
-            df, group_column, variable_to_analyze, p_value_threshold
+            df, variable_to_analyze, p_value_threshold, group_column
         ):
             pvalue = get_oneway_anova_significance(
                 df, group_column, variable_to_analyze
@@ -138,6 +144,102 @@ def get_results(
         significant_results = results.significant_results
     else:
         significant_results = []
+
+    return AnalysisResults(
+        significant_results,
+        info,
+        sample_size,
+        dichotomous_flag,
+        levene_flag,
+        gaussian_flag,
+    )
+
+
+def analyze_dependent_groups(
+    df: pd.DataFrame,
+    variables_to_compare: List[str],
+    p_value_threshold: float = 0.05,
+    min_sample_size: int = 25,
+) -> Optional[AnalysisResults]:
+    """
+    Analyzes dependent groups using appropriate statistical tests and returns an AnalysisResults object.
+
+    Parameters:
+    df (pandas.DataFrame): The dataframe containing the data to analyze.
+    variables_to_compare (List[str]): The column names in df that are to be analyzed for statistical significance.
+    p_value_threshold (float, optional): The threshold for determining statistical significance. Defaults to 0.05.
+    min_sample_size (int, optional): The minimum sample size for the data. Defaults to 25.
+
+    Returns:
+    AnalysisResults: An instance of the AnalysisResults class containing the following attributes:
+        - significant_results: A list of results of the statistical significance tests.
+        - info: A string containing information about the data if no results were found.
+        - sample_size: The sample size of the data.
+        - dichotomous_flag: A boolean flag indicating if the data is dichotomous (e.g. boolean).
+        - levene_flag: A boolean flag indicating if Levene's test for homogeneity of variances is significant.
+        - gaussian_flag: A boolean flag indicating if the data has a Gaussian distribution.
+    """
+    if p_value_threshold > 0.05:
+        print(
+            "Warning: p_value_threshold is set to a value higher than the conventional alpha level of 0.05."
+        )
+
+    try:
+        for variable in variables_to_compare:
+            df[variable]
+    except KeyError as e:
+        print(f"Column not found in DataFrame: {e}")
+        return None
+
+    df = df.dropna(subset=variables_to_compare)
+    sample_size = len(df)
+    pvalue = None
+    info = None
+    dichotomous_flag = False
+    levene_flag = False
+    gaussian_flag = False
+
+    # Check if any variable has less than the minimum sample size
+    if any(df[variable].count() < min_sample_size for variable in variables_to_compare):
+        info = "not enough data"
+    # Check if the variables are dichotomous (e.g. boolean)
+    elif all(is_dichotomous(df, variable) for variable in variables_to_compare):
+        dichotomous_flag = True
+        # Perform McNemar's test or its extension for more than two groups
+        pvalue, results = get_mcnemar_results(
+            df, variables_to_compare, p_value_threshold
+        )
+    elif all(is_numeric(df, variable) for variable in variables_to_compare):
+        # Check if the data has Gaussian distribution, if not use non-parametric tests
+        if gaussian_flag := all(
+            is_gaussian(df, variable, p_value_threshold)
+            for variable in variables_to_compare
+        ):
+            pvalue = get_repeated_measures_anova_significance(df, variables_to_compare)
+            if pvalue < p_value_threshold:
+                pvalue, results = get_repeated_measures_anova_posthoc(
+                    df, variables_to_compare, p_value_threshold
+                )
+        elif len(variables_to_compare) == 2:
+            pvalue, results = get_wilcoxon_results(
+                df, variables_to_compare, p_value_threshold
+            )
+        else:
+            pvalue = get_friedman_significance(df, variables_to_compare)
+            if pvalue < p_value_threshold:
+                results = get_nemenyi_results(
+                    df, variables_to_compare, p_value_threshold
+                )
+    else:
+        print("All variables have to be dichotomous (e.g. boolean) or numeric")
+        info = "All variables have to be dichotomous (e.g. boolean) or numeric"
+
+    # If no results were found, return a message
+    if not results or len(results.significant_results) == 0:
+        if pvalue is not None:
+            info = f"not significant (p={pvalue:.3f})"
+    # If results were found, return them
+    significant_results = results.significant_results if results else []
 
     return AnalysisResults(
         significant_results,
@@ -200,7 +302,7 @@ def get_results_pretty_text(
     str: A formatted text string with the results of the statistical significance tests.
     """
 
-    analysis_results = get_results(
+    analysis_results = analyze_independent_groups(
         df, variable_to_analyze, group_column, p_value_threshold, min_sample_size
     )
     significant_results = analysis_results.significant_results

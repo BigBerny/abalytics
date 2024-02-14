@@ -43,3 +43,18 @@ print(
         p_value_threshold=0.3,
     )
 )
+
+# Example DataFrame for pair-wise comparison
+data = {
+    "variable1": np.random.rand(1000),  # 100 random numeric values
+    "variable2": np.random.rand(1000)*4,  # 100 random numeric values
+}
+df = pd.DataFrame(data)
+
+print("A/B test example")
+
+result = abalytics.analyze_dependent_groups(
+    df,
+    ["variable1", "variable2"]
+)
+print(abalytics.utils.format_results_as_table([result], identifiers_list=[["Test Identifier"]]))

@@ -13,16 +13,21 @@ from statsmodels.sandbox.stats.multicomp import multipletests
 from collections import namedtuple
 
 
+# Define classes to structure the results of posthoc tests
 class PosthocResult:
+    """Represents a single posthoc test result."""
+
     def __init__(
         self, result_pretty_text: str, p_value: float, groups: List["GroupResult"]
     ):
-        self.result_pretty_text: str = result_pretty_text
-        self.p_value: float = p_value
-        self.groups: List[GroupResult] = groups
+        self.result_pretty_text = result_pretty_text
+        self.p_value = p_value
+        self.groups = groups
 
 
 class GroupResult:
+    """Represents the result for a single group within a posthoc test."""
+
     def __init__(
         self,
         name: str,
@@ -30,63 +35,55 @@ class GroupResult:
         mean: float,
         median: Union[float, None] = None,
     ):
-        self.name: str = name
-        self.sample_size: int = sample_size
-        self.mean: float = mean
-        self.median: Union[float, None] = median
+        self.name = name
+        self.sample_size = sample_size
+        self.mean = mean
+        self.median = median
 
 
 class PosthocResults:
+    """Container for multiple posthoc test results."""
+
     def __init__(self):
-        self.significant_results: List[PosthocResult] = []
+        self.significant_results = []
 
     def add_result(
         self, result_pretty_text: str, p_value: float, groups_info: List[Dict[str, Any]]
     ):
-        groups: List[GroupResult] = [GroupResult(**group) for group in groups_info]
-        result: PosthocResult = PosthocResult(result_pretty_text, p_value, groups)
+        groups = [GroupResult(**group) for group in groups_info]
+        result = PosthocResult(result_pretty_text, p_value, groups)
         self.significant_results.append(result)
 
 
+# Define functions to perform various statistical tests and analyses
 def is_dichotomous(df: pd.DataFrame, variable: str) -> bool:
-    # Check if the variable has only two unique values
-    return len(df[variable].unique()) == 2
+    """Check if a variable in a DataFrame is dichotomous."""
+    return df[variable].nunique() == 2
 
 
 def is_numeric(df: pd.DataFrame, variable: str) -> bool:
-    # Check if the variable is of numeric type
-    return df[variable].dtype in [float, int]
+    """Check if a variable in a DataFrame is numeric."""
+    return pd.api.types.is_numeric_dtype(df[variable])
 
 
 def is_gaussian(
-    df: pd.DataFrame, variable: str, p_value_threshold: float, group_column: str = None, 
+    df: pd.DataFrame, variable: str, p_value_threshold: float, group_column: str = None
 ) -> bool:
-    if group_column is None:
-        # Test for normality using the specified p-value threshold
-        _, p_value = normaltest(df[variable])
-        return p_value >= p_value_threshold
-    else:
-        # Iterate over each unique group in the specified column
-        for group in df[group_column].unique():
-            # Subset the dataframe for the current group and test for normality
-            group_data = df[df[group_column] == group][variable]
-            _, p_value = normaltest(group_data)
-
-            # If the p-value is less than the threshold, the data is not Gaussian
-            if p_value < p_value_threshold:
-                return False  # Early return if any group is not Gaussian
-
-    # If all groups passed the normality test, return True
-    return True
+    """Check if a variable or grouped variables in a DataFrame follow a Gaussian distribution."""
+    if group_column:
+        return all(
+            normaltest(df[df[group_column] == group][variable])[1] >= p_value_threshold
+            for group in df[group_column].unique()
+        )
+    return normaltest(df[variable])[1] >= p_value_threshold
 
 
 def get_chi_square_significance(
     df: pd.DataFrame, group_column: str, variable: str
 ) -> float:
+    """Calculate the chi-square test significance for a given variable and group."""
     contingency_table = pd.crosstab(df[group_column], df[variable])
-    _, pvalue, _, _ = chi2_contingency(contingency_table)
-    return pvalue
-
+    return chi2_contingency(contingency_table)[1]
 
 def get_chi_square_posthoc_results(
     df: pd.DataFrame, group_column: str, variable: str, p_value_threshold: float
@@ -100,10 +97,11 @@ def get_chi_square_posthoc_results(
     ]
     p_values: List[float] = []
 
+    assert set(contingency_table.columns).issubset({0, 1, False, True}), "Columns must be 0/1 or False/True."
+
     for group_a, group_b in group_combinations:
-        if 1 not in contingency_table.columns:
-            continue
-        count = [contingency_table.loc[group_a, 1], contingency_table.loc[group_b, 1]]
+        true_or_one = 1 if 1 in contingency_table.columns else True
+        count = [contingency_table.loc[group_a, true_or_one], contingency_table.loc[group_b, true_or_one]]
         nobs = [
             contingency_table.loc[group_a].sum(),
             contingency_table.loc[group_b].sum(),
@@ -124,7 +122,7 @@ def get_chi_square_posthoc_results(
         )
 
         if p_value < p_value_threshold:
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.1f}%) > {groups_info[1]['name']} ({groups_info[1]['mean']:.1f}%) (p={p_value:.3f})"
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.1f}%) vs {groups_info[1]['name']} ({groups_info[1]['mean']:.1f}%) (p={p_value:.3f})"
             posthoc_results.add_result(result_pretty_text, p_value, groups_info)
 
     if len(p_values) == 0:
@@ -140,70 +138,144 @@ def get_chi_square_posthoc_results(
     return posthoc_results
 
 
+def get_chi_square_posthoc_results_new(
+    df: pd.DataFrame, group_column: str, variable: str, p_value_threshold: float
+) -> PosthocResults:
+    """Perform posthoc analysis for chi-square test results."""
+    posthoc_results = PosthocResults()
+    contingency_table = pd.crosstab(df[group_column], df[variable])
+    group_combinations = list(combinations(contingency_table.index, 2))
+    p_values = []
+
+    for group_a, group_b in group_combinations:
+        if 1 not in contingency_table.columns:
+            continue
+        count = [contingency_table.loc[group_a, 1], contingency_table.loc[group_b, 1]]
+        nobs = [
+            contingency_table.loc[group_a].sum(),
+            contingency_table.loc[group_b].sum(),
+        ]
+        rate_a, rate_b = (count[0] / nobs[0]) * 100, (count[1] / nobs[1]) * 100
+        _, p_value = proportions_ztest(count, nobs)
+        p_values.append(p_value)
+
+        if p_value < p_value_threshold:
+            groups_info = [
+                {"name": group, "sample_size": nobs[i], "mean": rate}
+                for i, (group, rate) in enumerate(
+                    zip([group_a, group_b], [rate_a, rate_b])
+                )
+            ]
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.1f}%) > {groups_info[1]['name']} ({groups_info[1]['mean']:.1f}%) (p={p_value:.3f})"
+            posthoc_results.add_result(result_pretty_text, p_value, groups_info)
+
+    # Apply Bonferroni correction if there are any p-values to correct
+    if p_values:
+        corrected_alpha = p_value_threshold / len(p_values)
+        posthoc_results.significant_results = [
+            result
+            for result in posthoc_results.significant_results
+            if result.p_value < corrected_alpha
+        ]
+
+    return posthoc_results
+
+
 def is_levene_significant(
     df: pd.DataFrame, group_column: str, variable: str, p_value_threshold: float
 ) -> bool:
-    # Prepare data for homogeneity of variances test
-    groups = df[group_column].unique()
-    data_groups = [df[df[group_column] == group][variable] for group in groups]
+    """
+    Determines if the variances across groups are significantly different using Levene's test.
 
-    # Perform Levene's test for equal variances
-    _, p_levene = stats.levene(*data_groups)
+    Parameters:
+    - df (pd.DataFrame): The dataframe containing the data.
+    - group_column (str): The column name representing the groups.
+    - variable (str): The column name of the variable to test for homogeneity of variances.
+    - p_value_threshold (float): The significance level.
 
-    # Check if variances are equal
-    return p_levene < p_value_threshold
+    Returns:
+    - bool: True if variances are significantly different, False otherwise.
+    """
+    # Extract data for each group
+    data_groups = [
+        df[df[group_column] == group][variable] for group in df[group_column].unique()
+    ]
+    # Perform Levene's test
+    _, p_value = stats.levene(*data_groups)
+    # Determine significance
+    return p_value < p_value_threshold
 
 
 def get_welch_anova_significance(
     df: pd.DataFrame, group_column: str, variable: str
 ) -> float:
-    # Perform Welch's ANOVA
-    welch_anova_results = welch_anova(data=df, dv=variable, between=group_column)
-    # Check if the p-value from Welch's ANOVA is significant
-    return welch_anova_results.loc[0, "p-unc"]
+    """
+    Calculates the significance of differences between group means using Welch's ANOVA.
+
+    Parameters:
+    - df (pd.DataFrame): The dataframe containing the data.
+    - group_column (str): The column name representing the groups.
+    - variable (str): The column name of the variable to test.
+
+    Returns:
+    - float: The p-value from Welch's ANOVA.
+    """
+    # Perform Welch's ANOVA and return the p-value
+    return welch_anova(data=df, dv=variable, between=group_column).loc[0, "p-unc"]
 
 
 def get_games_howell_posthoc_results(
     df: pd.DataFrame, group_column: str, variable: str, p_value_threshold: float
 ) -> PosthocResults:
+    """
+    Performs the Games-Howell posthoc test to identify differences between pairs of groups.
+
+    Parameters:
+    - df (pd.DataFrame): The dataframe containing the data.
+    - group_column (str): The column name representing the groups.
+    - variable (str): The column name of the variable to test.
+    - p_value_threshold (float): The significance level for identifying significant differences.
+
+    Returns:
+    - PosthocResults: An object containing significant posthoc test results.
+    """
     posthoc_results = PosthocResults()
+    # Perform Games-Howell posthoc test
     games_howell_results = pairwise_gameshowell(
         data=df, dv=variable, between=group_column
     )
-    group_means = df.groupby(group_column)[variable].mean()
-    group_medians = df.groupby(group_column)[variable].median()
-    group_sizes = df.groupby(group_column).size()
+    # Aggregate group statistics
+    group_stats = (
+        df.groupby(group_column)[variable].agg(["mean", "median", "size"]).reset_index()
+    )
 
-    for _, row in games_howell_results.iterrows():
-        p_value = row["pval"]
-        if p_value < p_value_threshold:
-            group_a, group_b = row["A"], row["B"]
-            mean_a, mean_b = group_means[group_a], group_means[group_b]
-            median_a, median_b = group_medians[group_a], group_medians[group_b]
-            size_a, size_b = group_sizes[group_a], group_sizes[group_b]
-
-            # Order groups so the one with the higher mean is first
-            groups_info = sorted(
-                [
-                    {
-                        "name": group_a,
-                        "sample_size": size_a,
-                        "mean": mean_a,
-                        "median": median_a,
-                    },
-                    {
-                        "name": group_b,
-                        "sample_size": size_b,
-                        "mean": mean_b,
-                        "median": median_b,
-                    },
-                ],
-                key=lambda x: x["mean"],
-                reverse=True,
-            )
-
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_value:.3f})"
-            posthoc_results.add_result(result_pretty_text, p_value, groups_info)
+    # Filter significant results and add to posthoc results
+    significant_results = games_howell_results[
+        games_howell_results["pval"] < p_value_threshold
+    ]
+    for _, row in significant_results.iterrows():
+        group_a_stats = group_stats[group_stats[group_column] == row["A"]].iloc[0]
+        group_b_stats = group_stats[group_stats[group_column] == row["B"]].iloc[0]
+        groups_info = sorted(
+            [
+                {
+                    "name": row["A"],
+                    "sample_size": group_a_stats["size"],
+                    "mean": group_a_stats["mean"],
+                    "median": group_a_stats["median"],
+                },
+                {
+                    "name": row["B"],
+                    "sample_size": group_b_stats["size"],
+                    "mean": group_b_stats["mean"],
+                    "median": group_b_stats["median"],
+                },
+            ],
+            key=lambda x: x["mean"],
+            reverse=True,
+        )
+        result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={row['pval']:.3f})"
+        posthoc_results.add_result(result_pretty_text, row["pval"], groups_info)
 
     return posthoc_results
 
@@ -211,108 +283,141 @@ def get_games_howell_posthoc_results(
 def get_oneway_anova_significance(
     df: pd.DataFrame, group_column: str, variable: str
 ) -> float:
-    group_names = df[group_column].unique()
-    # Perform one-way ANOVA
-    group_data = [df[df[group_column] == group][variable] for group in group_names]
-    _, pvalue = stats.f_oneway(*group_data)
-    return pvalue
+    """
+    Calculates the significance of differences between group means using one-way ANOVA.
+
+    Parameters:
+    - df (pd.DataFrame): The dataframe containing the data.
+    - group_column (str): The column name representing the groups.
+    - variable (str): The column name of the variable to test.
+
+    Returns:
+    - float: The p-value from the one-way ANOVA test.
+    """
+    group_data = [
+        df[df[group_column] == group][variable] for group in df[group_column].unique()
+    ]
+    _, p_value = stats.f_oneway(*group_data)
+    return p_value
 
 
 def get_crushal_wallis_significance(
     df: pd.DataFrame, group_column: str, variable: str
 ) -> float:
-    group_names = df[group_column].unique()
-    # Perform Kruskal-Wallis test
-    group_data = [df[df[group_column] == group][variable] for group in group_names]
-    _, pvalue = stats.kruskal(*group_data)
-    return pvalue
+    """
+    Calculates the significance of differences between group medians using Kruskal-Wallis H-test.
+
+    Parameters:
+    - df (pd.DataFrame): The dataframe containing the data.
+    - group_column (str): The column name representing the groups.
+    - variable (str): The column name of the variable to test.
+
+    Returns:
+    - float: The p-value from the Kruskal-Wallis H-test.
+    """
+    group_data = [
+        df[df[group_column] == group][variable] for group in df[group_column].unique()
+    ]
+    _, p_value = stats.kruskal(*group_data)
+    return p_value
 
 
 def get_tukeyhsd_posthoc_results(
     df: pd.DataFrame, group_column: str, variable: str, p_value_threshold: float
 ) -> PosthocResults:
+    """
+    Performs Tukey's Honest Significant Difference (HSD) test to identify differences between pairs of group means.
+
+    Parameters:
+    - df (pd.DataFrame): The dataframe containing the data.
+    - group_column (str): The column name representing the groups.
+    - variable (str): The column name of the variable to test.
+    - p_value_threshold (float): The significance level for identifying significant differences.
+
+    Returns:
+    - PosthocResults: An object containing significant posthoc test results.
+    """
     posthoc_results = PosthocResults()
-    # Perform Tukey's HSD test
     tukey = pairwise_tukeyhsd(
-        endog=df[variable],
-        groups=df[group_column],
-        alpha=p_value_threshold,
+        endog=df[variable], groups=df[group_column], alpha=p_value_threshold
+    )
+    group_stats = (
+        df.groupby(group_column)[variable].agg(["mean", "median", "size"]).reset_index()
     )
 
-    # Calculate means and medians for each group
-    group_means = df.groupby(group_column)[variable].mean()
-    group_medians = df.groupby(group_column)[variable].median()
-    group_sizes = df.groupby(group_column).size()
-
-    # Process only significant results
-    significant_results = tukey._results_df[tukey._results_df["reject"] == True]
+    significant_results = tukey._results_df[tukey._results_df["reject"]]
     for _, row in significant_results.iterrows():
         group_a, group_b = row["group1"], row["group2"]
-        p_value = row["p-adj"]
-        mean_a, mean_b = group_means[group_a], group_means[group_b]
-        median_a, median_b = group_medians[group_a], group_medians[group_b]
-        size_a, size_b = group_sizes[group_a], group_sizes[group_b]
-
-        # Order groups so the one with the higher mean is first
+        group_a_stats = group_stats.loc[group_stats[group_column] == group_a].iloc[0]
+        group_b_stats = group_stats.loc[group_stats[group_column] == group_b].iloc[0]
         groups_info = sorted(
             [
                 {
                     "name": group_a,
-                    "sample_size": size_a,
-                    "mean": mean_a,
-                    "median": median_a,
+                    "sample_size": group_a_stats["size"],
+                    "mean": group_a_stats["mean"],
+                    "median": group_a_stats["median"],
                 },
                 {
                     "name": group_b,
-                    "sample_size": size_b,
-                    "mean": mean_b,
-                    "median": median_b,
+                    "sample_size": group_b_stats["size"],
+                    "mean": group_b_stats["mean"],
+                    "median": group_b_stats["median"],
                 },
             ],
             key=lambda x: x["mean"],
             reverse=True,
         )
-
-        result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_value:.3f})"
-        posthoc_results.add_result(result_pretty_text, p_value, groups_info)
+        result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={row['p-adj']:.3f})"
+        posthoc_results.add_result(result_pretty_text, row["p-adj"], groups_info)
 
     return posthoc_results
 
 
-def get_dunn_posthoc_results(df, group_column, variable, p_value_threshold):
+def get_dunn_posthoc_results(
+    df: pd.DataFrame, group_column: str, variable: str, p_value_threshold: float
+) -> PosthocResults:
+    """
+    Performs Dunn's posthoc test following a Kruskal-Wallis H-test to identify differences between pairs of group medians.
+
+    Parameters:
+    - df (pd.DataFrame): The dataframe containing the data.
+    - group_column (str): The column name representing the groups.
+    - variable (str): The column name of the variable to test.
+    - p_value_threshold (float): The significance level for identifying significant differences.
+
+    Returns:
+    - PosthocResults: An object containing significant posthoc test results.
+    """
     posthoc_results = PosthocResults()
-    # Perform Dunn's test
     dunn_results = posthoc_dunn(
-        df,
-        val_col=variable,
-        group_col=group_column,
-        p_adjust="holm",
+        df, val_col=variable, group_col=group_column, p_adjust="holm"
     )
-    group_means = df.groupby(group_column)[variable].mean()
-    group_medians = df.groupby(group_column)[variable].median()
-    group_sizes = df.groupby(group_column).size()
+    group_stats = (
+        df.groupby(group_column)[variable].agg(["mean", "median", "size"]).reset_index()
+    )
 
-    for group_a, group_b in combinations(dunn_results.index, 2):
-        p_value = dunn_results.at[group_a, group_b]
+    for group_pair, p_value in enumerate(dunn_results.values.flatten()):        
+        group_a, group_b = divmod(group_pair, dunn_results.shape[1])
         if p_value < p_value_threshold:
-            mean_a, mean_b = group_means[group_a], group_means[group_b]
-            median_a, median_b = group_medians[group_a], group_medians[group_b]
-            size_a, size_b = group_sizes[group_a], group_sizes[group_b]
+            group_a_name = group_stats.iloc[group_a][group_column]
+            group_b_name = group_stats.iloc[group_b][group_column]
+            group_a_stats = group_stats.iloc[group_a]
+            group_b_stats = group_stats.iloc[group_b]
 
-            # Order groups so the one with the higher mean is first
             groups_info = sorted(
                 [
                     {
-                        "name": group_a,
-                        "sample_size": size_a,
-                        "mean": mean_a,
-                        "median": median_a,
+                        "name": group_a_name,
+                        "sample_size": group_a_stats["size"],
+                        "mean": group_a_stats["mean"],
+                        "median": group_a_stats["median"],
                     },
                     {
-                        "name": group_b,
-                        "sample_size": size_b,
-                        "mean": mean_b,
-                        "median": median_b,
+                        "name": group_b_name,
+                        "sample_size": group_b_stats["size"],
+                        "mean": group_b_stats["mean"],
+                        "median": group_b_stats["median"],
                     },
                 ],
                 key=lambda x: x["mean"],
@@ -321,6 +426,7 @@ def get_dunn_posthoc_results(df, group_column, variable, p_value_threshold):
 
             result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_value:.3f})"
             posthoc_results.add_result(result_pretty_text, p_value, groups_info)
+
     return posthoc_results
 
 
@@ -329,54 +435,61 @@ def get_mcnemar_results(
 ) -> Tuple[float, PosthocResults]:
     """
     Performs McNemar's test or its extension for more than two groups and returns the p-value and posthoc results.
+    This function is designed to work with binary categorical data to compare the proportions of categories between two related samples.
 
     Parameters:
-    df (pandas.DataFrame): The dataframe containing the data to analyze.
-    variables_to_compare (List[str]): The column names in df that are to be analyzed for statistical significance.
-    p_value_threshold (float): The threshold for determining statistical significance.
+    - df (pandas.DataFrame): The dataframe containing the data to analyze.
+    - variables_to_compare (List[str]): The column names in df that are to be analyzed for statistical significance.
+    - p_value_threshold (float): The threshold for determining statistical significance.
 
     Returns:
-    Tuple[float, PosthocResults]: A tuple containing the p-value of the McNemar's test and the posthoc results.
+    - Tuple[float, PosthocResults]: A tuple containing the p-value of the McNemar's test and the posthoc results.
     """
     posthoc_results = PosthocResults()
-    # Create a contingency table for each pair of variables
-    for i in range(len(variables_to_compare) - 1):
-        for j in range(i + 1, len(variables_to_compare)):
-            var1 = variables_to_compare[i]
-            var2 = variables_to_compare[j]
-            contingency_table = pd.crosstab(df[var1], df[var2])
-            # Perform McNemar's test
-            result = mcnemar(contingency_table, exact=False)
-            p_value = result.pvalue
-            if p_value < p_value_threshold:
-                # Add significant result to posthoc results
-                groups_info = sorted(
-                    [
-                        {
-                            "name": var1,
-                            "sample_size": df[var1].size,
-                            "mean": df[var1].mean(),
-                            "median": df[var1].median(),
-                        },
-                        {
-                            "name": var2,
-                            "sample_size": df[var2].size,
-                            "mean": df[var2].mean(),
-                            "median": df[var2].median(),
-                        },
-                    ],
-                    key=lambda x: x["mean"],
-                    reverse=True,
-                )
-                result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_value:.3f})"
+    # Iterate over all pairs of variables to compare
+    for var1, var2 in combinations(variables_to_compare, 2):
+        # Create a contingency table for the pair of variables
+        contingency_table = pd.crosstab(df[var1], df[var2])
+        # Perform McNemar's test
+        result = mcnemar(contingency_table, exact=False)
+        p_value = result.pvalue
 
-                posthoc_results.add_result(result_pretty_text, p_value, groups_info)
+        # If the result is significant, add it to the posthoc results
+        if p_value < p_value_threshold:
+            # Extract statistics for each variable
+            groups_info = [
+                {
+                    "name": variable,
+                    "sample_size": df[variable].size,
+                    "mean": df[variable].mean(),
+                    "median": df[variable].median(),
+                }
+                for variable in [var1, var2]
+            ]
+            # Sort groups by mean for consistent presentation
+            groups_info.sort(key=lambda x: x["mean"], reverse=True)
+            # Format the result text
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_value:.3f})"
+            # Add the result to posthoc results
+            posthoc_results.add_result(result_pretty_text, p_value, groups_info)
+
     return posthoc_results
 
 
 def get_repeated_measures_anova_significance(
     df: pd.DataFrame, variables_to_compare: List[str]
 ) -> float:
+    """
+    Calculates the significance of differences between conditions using repeated measures ANOVA.
+
+    Parameters:
+    - df (pd.DataFrame): The dataframe containing the data.
+    - variables_to_compare (List[str]): The column names representing the conditions to compare.
+
+    Returns:
+    - float: The p-value from the repeated measures ANOVA test.
+    """
+    # Convert the dataframe to long format for ANOVA
     df_long = pd.melt(
         df.reset_index(),
         id_vars=["index"],
@@ -385,60 +498,61 @@ def get_repeated_measures_anova_significance(
         value_name="value",
     )
     df_long.rename(columns={"index": "subject_id"}, inplace=True)
+    # Perform repeated measures ANOVA
     aovrm = AnovaRM(df_long, "value", "subject_id", within=["conditions"])
     anova_results = aovrm.fit()
+    # Extract and return the p-value
     p_value = anova_results.anova_table["Pr > F"]["conditions"]
     return p_value
 
 
-def get_repeated_measures_anova_posthoc(
+def get_repeated_measures_anova_posthoc_results(
     df: pd.DataFrame, variables_to_compare: List[str], p_value_threshold: float
 ) -> PosthocResults:
-    posthoc_results = PosthocResults()
-    # Perform pairwise comparisons
-    pairwise_comparisons = []
-    for i, var1 in enumerate(variables_to_compare):
-        for j, var2 in enumerate(variables_to_compare):
-            if i < j:
-                data1 = df[var1]
-                data2 = df[var2]
-                # Perform paired t-test
-                t_stat, p_val = stats.ttest_rel(data1, data2)
-                pairwise_comparisons.append((var1, var2, t_stat, p_val))
+    """
+    Performs posthoc pairwise comparisons after repeated measures ANOVA to identify significant differences.
 
-    # Adjust for multiple comparisons using Bonferroni correction
-    num_comparisons = len(pairwise_comparisons)
-    reject, pvals_corrected, _, _ = multipletests(
-        [x[3] for x in pairwise_comparisons],
+    Parameters:
+    - df (pd.DataFrame): The dataframe containing the data.
+    - variables_to_compare (List[str]): The column names representing the conditions to compare.
+    - p_value_threshold (float): The significance level for identifying significant differences.
+
+    Returns:
+    - PosthocResults: An object containing significant posthoc test results.
+    """
+    posthoc_results = PosthocResults()
+    # Generate all pairwise comparisons
+    pairwise_comparisons = [
+        (var1, var2, *stats.ttest_rel(df[var1], df[var2]))
+        for var1, var2 in combinations(variables_to_compare, 2)
+    ]
+
+    # Adjust p-values for multiple comparisons using Bonferroni correction
+    _, pvals_corrected, _, _ = multipletests(
+        [p_val for _, _, _, p_val in pairwise_comparisons],
         alpha=p_value_threshold,
         method="bonferroni",
     )
 
-    # Add significant results to posthoc results
-    for (var1, var2, t_stat, p_val), reject, p_val_corrected in zip(
-        pairwise_comparisons, reject, pvals_corrected
+    # Filter and add significant results to posthoc results
+    for (var1, var2, _, p_val), p_val_corrected in zip(
+        pairwise_comparisons, pvals_corrected
     ):
-        if reject:
-            groups_info = sorted(
-                [
-                    {
-                        "name": var1,
-                        "sample_size": df[var1].size,
-                        "mean": df[var1].mean(),
-                        "median": df[var1].median(),
-                    },
-                    {
-                        "name": var2,
-                        "sample_size": df[var2].size,
-                        "mean": df[var2].mean(),
-                        "median": df[var2].median(),
-                    },
-                ],
-                key=lambda x: x["mean"],
-                reverse=True,
-            )
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_val:.3f})"
+        if p_val_corrected < p_value_threshold:
+            groups_info = [
+                {
+                    "name": var,
+                    "sample_size": df[var].size,
+                    "mean": df[var].mean(),
+                    "median": df[var].median(),
+                }
+                for var in [var1, var2]
+            ]
+            # Sort groups by mean for consistent presentation
+            groups_info.sort(key=lambda x: x["mean"], reverse=True)
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_val_corrected:.3f})"
             posthoc_results.add_result(result_pretty_text, p_val_corrected, groups_info)
+
     return posthoc_results
 
 
@@ -446,53 +560,41 @@ def get_wilcoxon_results(
     df: pd.DataFrame, variables_to_compare: List[str], p_value_threshold: float
 ) -> Tuple[float, PosthocResults]:
     """
-    Performs Wilcoxon signed-rank test for two paired samples and returns the p-value and posthoc results.
+    Performs the Wilcoxon signed-rank test for two paired samples and returns the p-value and posthoc results.
+    This function is designed for paired comparisons to test the null hypothesis that two related paired samples
+    come from the same distribution.
 
     Parameters:
-    df (pandas.DataFrame): The dataframe containing the data to analyze.
-    variables_to_compare (List[str]): The column names in df that are to be analyzed for statistical significance.
-    p_value_threshold (float): The threshold for determining statistical significance.
+    - df (pd.DataFrame): The dataframe containing the data to analyze.
+    - variables_to_compare (List[str]): A list containing exactly two column names in df that are to be analyzed for statistical significance.
+    - p_value_threshold (float): The threshold for determining statistical significance.
 
     Returns:
-    Tuple[float, PosthocResults]: A tuple containing the p-value of the Wilcoxon signed-rank test and the posthoc results.
+    - Tuple[float, PosthocResults]: A tuple containing the p-value of the Wilcoxon signed-rank test and the posthoc results.
     """
+    assert (
+        len(variables_to_compare) == 2
+    ), "Exactly two variables must be compared for the Wilcoxon test."
+
     posthoc_results = PosthocResults()
     var1, var2 = variables_to_compare
+    data1, data2 = df[var1], df[var2]
 
-    # Ensure that exactly two variables are provided for comparison
-    assert len(variables_to_compare) == 2, "Exactly two variables must be compared."
-
-    # Extract the data for the two variables
-    data1 = df[var1]
-    data2 = df[var2]
-
-    # Perform the Wilcoxon signed-rank test
     _, p_value = wilcoxon(data1, data2)
 
-    groups_info = sorted(
-        [
-            {
-                "name": var1,
-                "sample_size": df[var1].size,
-                "mean": df[var1].mean(),
-                "median": df[var1].median(),
-            },
-            {
-                "name": var2,
-                "sample_size": df[var2].size,
-                "mean": df[var2].mean(),
-                "median": df[var2].median(),
-            },
-        ],
-        key=lambda x: x["mean"],
-        reverse=True,
-    )
-    # Add significant result to posthoc results
-    result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_value:.3f})"
+    groups_info = [
+        {
+            "name": var,
+            "sample_size": df[var].size,
+            "mean": df[var].mean(),
+            "median": df[var].median(),
+        }
+        for var in variables_to_compare
+    ]
+    groups_info.sort(key=lambda x: x["mean"], reverse=True)
 
-    posthoc_results.add_result(
-        result_pretty_text, p_value, groups_info
-    )
+    result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_value:.3f})"
+    posthoc_results.add_result(result_pretty_text, p_value, groups_info)
 
     return p_value, posthoc_results
 
@@ -501,18 +603,17 @@ def get_friedman_significance(
     df: pd.DataFrame, variables_to_compare: List[str]
 ) -> float:
     """
-    Performs Friedman test for repeated measures on ranks and returns the p-value.
+    Performs the Friedman test for repeated measures on ranks and returns the p-value.
+    This non-parametric test is used to detect differences in treatments across multiple test attempts.
 
     Parameters:
-    df (pandas.DataFrame): The dataframe containing the data to analyze.
-    variables_to_compare (List[str]): The column names in df that are to be analyzed for statistical significance.
+    - df (pd.DataFrame): The dataframe containing the data to analyze.
+    - variables_to_compare (List[str]): The column names in df that are to be analyzed for statistical significance.
 
     Returns:
-    float: The p-value of the Friedman test.
+    - float: The p-value of the Friedman test, indicating the probability of observing the given result by chance.
     """
-    # Prepare the data for the Friedman test
     data = [df[variable].values for variable in variables_to_compare]
-    # Perform the Friedman test
     _, p_value = friedmanchisquare(*data)
     return p_value
 
@@ -521,48 +622,35 @@ def get_nemenyi_results(
     df: pd.DataFrame, variables_to_compare: List[str], p_value_threshold: float
 ) -> PosthocResults:
     """
-    Performs Nemenyi posthoc test suitable after Friedman test and returns the posthoc results.
+    Performs the Nemenyi posthoc test suitable after the Friedman test to identify differences between pairs of group medians.
+    This test is used when the Friedman test has indicated significant differences, to find out which groups differ.
 
     Parameters:
-    df (pandas.DataFrame): The dataframe containing the data to analyze.
-    variables_to_compare (List[str]): The column names in df that are to be analyzed for statistical significance.
-    p_value_threshold (float): The threshold for determining statistical significance.
+    - df (pd.DataFrame): The dataframe containing the data to analyze.
+    - variables_to_compare (List[str]): The column names in df that are to be analyzed for statistical significance.
+    - p_value_threshold (float): The threshold for determining statistical significance.
 
     Returns:
-    PosthocResults: The posthoc results after performing the Nemenyi test.
+    - PosthocResults: An object containing significant posthoc test results.
     """
     posthoc_results = PosthocResults()
-    # Perform Nemenyi posthoc test which is suitable after Friedman test
     posthoc = posthoc_nemenyi_friedman(df[variables_to_compare])
-    # Iterate over each pair of variables and check if their comparison is significant
-    for i, var1 in enumerate(variables_to_compare):
-        for j, var2 in enumerate(variables_to_compare):
-            if i < j:
-                posthoc_p_value = posthoc.iloc[i, j]
-                if posthoc_p_value < p_value_threshold:
-                    # Order groups so the one with the higher mean is first
-                    groups_info = sorted(
-                        [
-                            {
-                                "name": var1,
-                                "sample_size": df[var1].size,
-                                "mean": df[var1].mean(),
-                                "median": df[var1].median(),
-                            },
-                            {
-                                "name": var2,
-                                "sample_size": df[var2].size,
-                                "mean": df[var2].mean(),
-                                "median": df[var2].median(),
-                            },
-                        ],
-                        key=lambda x: x["mean"],
-                        reverse=True,
-                    )
-                    # Add significant result to posthoc results
-                    result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={posthoc_p_value:.3f})"
 
-                    posthoc_results.add_result(
-                        result_pretty_text, posthoc_p_value, groups_info
-                    )
+    for (i, var1), (j, var2) in combinations(enumerate(variables_to_compare), 2):
+        posthoc_p_value = posthoc.iloc[i, j]
+        if posthoc_p_value < p_value_threshold:
+            groups_info = [
+                {
+                    "name": var,
+                    "sample_size": df[var].size,
+                    "mean": df[var].mean(),
+                    "median": df[var].median(),
+                }
+                for var in [var1, var2]
+            ]
+            groups_info.sort(key=lambda x: x["mean"], reverse=True)
+
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={posthoc_p_value:.3f})"
+            posthoc_results.add_result(result_pretty_text, posthoc_p_value, groups_info)
+
     return posthoc_results

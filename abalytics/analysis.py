@@ -14,7 +14,7 @@ from .significance_tests import (
     get_dunn_posthoc_results,
     get_mcnemar_results,
     get_repeated_measures_anova_significance,
-    get_repeated_measures_anova_posthoc,
+    get_repeated_measures_anova_posthoc_results,
     get_wilcoxon_results,
     get_friedman_significance,
     get_nemenyi_results,
@@ -23,14 +23,26 @@ from typing import Optional, List
 
 
 class AnalysisResults:
+    """
+    A class to store and manage the results of statistical analyses.
+
+    Attributes:
+        significant_results (List): A list of significant results from the statistical tests.
+        info (str): Additional information or notes regarding the analysis.
+        sample_size (int): The sample size used in the analysis.
+        dichotomous_flag (bool): Indicates if the data analyzed is dichotomous.
+        levene_flag (bool): Indicates if Levene's test for homogeneity of variances is significant.
+        gaussian_flag (bool): Indicates if the data follows a Gaussian distribution.
+    """
+
     def __init__(
         self,
-        significant_results=None,
-        info=None,
-        sample_size=None,
-        dichotomous_flag=None,
-        levene_flag=None,
-        gaussian_flag=None,
+        significant_results: Optional[List] = None,
+        info: Optional[str] = None,
+        sample_size: Optional[int] = None,
+        dichotomous_flag: Optional[bool] = None,
+        levene_flag: Optional[bool] = None,
+        gaussian_flag: Optional[bool] = None,
     ):
         self.significant_results = (
             significant_results if significant_results is not None else []
@@ -217,7 +229,7 @@ def analyze_dependent_groups(
         ):
             pvalue = get_repeated_measures_anova_significance(df, variables_to_compare)
             if pvalue < p_value_threshold:
-                pvalue, results = get_repeated_measures_anova_posthoc(
+                pvalue, results = get_repeated_measures_anova_posthoc_results(
                     df, variables_to_compare, p_value_threshold
                 )
         elif len(variables_to_compare) == 2:
@@ -249,102 +261,3 @@ def analyze_dependent_groups(
         levene_flag,
         gaussian_flag,
     )
-
-
-def get_results_pretty_text_header(identifiers: Optional[List[str]] = None) -> str:
-    """
-    Returns a text with the results of the statistical significance tests.
-
-    Parameters:
-    identifiers (list of str, optional): A list of strings that are to be used for identifying the data. Defaults to [].
-
-    Returns:
-    str: A formatted text string with the header of the pretty text table.
-    """
-    identifier_string = ""
-    identifier_string_empty = ""
-    if identifiers:
-        identifier_string = "    ".join(identifiers)
-        identifier_string += "    "
-        identifier_string_empty = "    ".join([""] * len(identifiers))
-        identifier_string_empty += "    "
-        output_string = f"{'Identifier':<{len(identifier_string)}}{'n':>10}    {'Levene':<6}    {'Gaussian':<8}    {'Result'}"
-    else:
-        output_string = f"{'n':>10}    {'Levene':<6}    {'Gaussian':<8}    {'Result'}"
-
-    return output_string
-
-
-def get_results_pretty_text(
-    df: pd.DataFrame,
-    variable_to_analyze: str,
-    group_column: str,
-    p_value_threshold: float = 0.05,
-    min_sample_size: int = 25,
-    header: bool = True,
-    identifiers: Optional[List[str]] = None,
-    show_only_significant_results: bool = False,
-):
-    """
-    Returns a text with the results of the statistical significance tests.
-
-    Parameters:
-    df (pandas.DataFrame): The dataframe containing the data to analyze.
-    variable_to_analyze (str): The column name in df that is to be analyzed for statistical significance.
-    group_column (str): The name of the column in df that contains the grouping variable.
-    p_value_threshold (float, optional): The threshold for determining statistical significance. Defaults to 0.05.
-    min_sample_size (int, optional): The minimum sample size for the data. Defaults to 25.
-    header (bool, optional): A boolean flag indicating if the header of the pretty text table should be included. Defaults to True.
-    identifiers (list of str, optional): A list of strings that are to be used for identifying the data. Defaults to [].
-    show_only_significant_results (bool, optional): A boolean flag indicating if only significant results should be shown. Defaults to False.
-
-    Returns:
-    str: A formatted text string with the results of the statistical significance tests.
-    """
-
-    analysis_results = analyze_independent_groups(
-        df, variable_to_analyze, group_column, p_value_threshold, min_sample_size
-    )
-    significant_results = analysis_results.significant_results
-    info = analysis_results.info
-    sample_size = analysis_results.sample_size
-    levene_flag = analysis_results.levene_flag
-    gaussian_flag = analysis_results.gaussian_flag
-
-    identifier_string = ""
-    identifier_string_empty = ""
-    if identifiers:
-        identifier_string = "    ".join(identifiers)
-        identifier_string += "    "
-        identifier_string_empty = "    ".join([""] * len(identifiers))
-        identifier_string_empty += "    "
-
-    output_string = ""
-    if header:
-        output_string += get_results_pretty_text_header(identifiers)
-        output_string += "\n"
-
-    levene_output = "X" if levene_flag else ""
-    gaussian_output = "X" if gaussian_flag else ""
-
-    output_results = []
-    if len(significant_results) > 0:
-        for i, result in enumerate(significant_results):
-            if i == 0:
-                output_results.append(
-                    f"{identifier_string}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}    {result.result_pretty_text}"
-                )
-            else:
-                output_results.append(
-                    f"{len(identifier_string) * ' '}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}    {result.result_pretty_text}"
-                )
-    elif not show_only_significant_results:
-        output_results.append(
-            f"{identifier_string}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}    {info}"
-        )
-    else:
-        output_results.append(
-            f"{identifier_string}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}"
-        )
-    output_string += "\n".join(output_results)
-    return output_string

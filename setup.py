@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='abalytics',
-    version='1.2.1',
+    version='2.0.0',
     author='Janis Berneker',
     packages=find_packages(),
     license='LICENSE',

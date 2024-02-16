@@ -54,9 +54,6 @@ def format_results_as_table(
             
 
     output_string = ""
-    if header:
-        output_string += get_table_header(max_identifier_length)
-        output_string += "\n"
 
     for idx, abalytics_result in enumerate(abalytics_results):
         identifier_string = identifier_string_list[idx] if identifier_string_list else ""
@@ -70,6 +67,11 @@ def format_results_as_table(
         gaussian_output = "X" if gaussian_flag else ""
 
         output_results = []
+        if show_only_significant_results and len(significant_results) == 0:
+            continue
+        if header:
+            output_string += get_table_header(max_identifier_length)
+            output_string += "\n"
         if len(significant_results) > 0:
             for i, result in enumerate(significant_results):
                 if i == 0:
@@ -80,13 +82,9 @@ def format_results_as_table(
                     output_results.append(
                         f"{len(identifier_string) * ' '}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}    {result.result_pretty_text}"
                     )
-        elif not show_only_significant_results:
+        else:
             output_results.append(
                 f"{identifier_string}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}    {info}"
             )
-        else:
-            output_results.append(
-                f"{identifier_string}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}"
-            )
-        output_string += "\n".join(output_results)
+    output_string += "\n".join(output_results)
     return output_string

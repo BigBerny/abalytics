@@ -26,23 +26,23 @@ import abalytics
 
 ### Analyzing Results
 
-To analyze your A/B testing results, you can use the `get_results` function. This function takes a pandas DataFrame, the name of the column containing the variable to analyze, the name of the column containing the grouping variable, and an optional p-value threshold (default is 0.05).
+To analyze your A/B testing results, you can use the two functions. 
+`analyze_independent_groups` takes a pandas DataFrame, the name of the column containing the variable to analyze, the name of the column containing the grouping variable, and an optional p-value threshold (default is 0.05) and min_sample_size (default is 25).
+`analyze_dependent_groups` takes a pandas DataFrame, the names of the columns to compare, and an optional p-value threshold (default is 0.05) and min_sample_size (default is 25).
 
-Here's an example of how to use `get_results`:
+Here's an example of how to use `analyze_independent_groups`:
 ```python
-from abalytics.analysis import get_results
+import abalytics
 import pandas as pd
 
 #Load your data into a pandas DataFrame
 df = pd.read_csv('your_data.csv')
 
 #Analyze the results
-analysis_results = get_results(
+analysis_results = abalytics.analyze_independent_groups(
     df,
     variable_to_analyze = "order_value",
     group_column = "ab_test_group",
-    p_value_threshold=0.05,
-    min_sample_size=25,
 )
 ```
 The `get_results` function will return an `AnalysisResults` object containing the following attributes:
@@ -55,21 +55,26 @@ The `get_results` function will return an `AnalysisResults` object containing th
 
 ### Generating Pretty Text Output
 
-For a formatted text output of your results, you can use the `get_results_pretty_text` function. This function takes the same parameters as `get_results` and additionally allows for identifiers to be included in the output and whether to include a header.
+To get a formatted text output of your results, you can use the `utils.format_results_as_table` function.
 
-Here's an example of how to use `get_results_pretty_text`:
+Here's an example of how to use format_results_as_table`:
 ```python
-from abalytics.analysis import get_results_pretty_text
+from abalytics
 
-# Assuming 'df' is your pandas DataFrame
-pretty_text = get_results_pretty_text(
+#Load your data into a pandas DataFrame
+df = pd.read_csv('your_data.csv')
+
+#Analyze the results
+analysis_results = abalytics.analyze_independent_groups(
     df,
     variable_to_analyze = "order_value",
     group_column = "ab_test_group",
-    p_value_threshold=0.05,
-    min_sample_size=25,
-    header=True,
-    identifiers=["A/B Test 1", "Mobile"],
+)
+
+# Assuming 'df' is your pandas DataFrame
+pretty_text = abalytics.utils.format_results_as_table(
+    abalytics_results=[analysis_results],
+    identifiers_list=[["A/B Test 1", "Mobile"]],
 )
 
 print(pretty_text)

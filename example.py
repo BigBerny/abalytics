@@ -4,11 +4,12 @@ import numpy as np
 
 # Example 1 DataFrame for demonstration
 data = {
-    "variable": np.random.rand(100),  # 100 random numeric values
+    "variable": [x * 1.2 if i < 500 else x for i, x in enumerate(np.random.rand(1000))],  # 100 random numeric values, 1.2 times higher for group A
     "group": [
-        "A" if x < 50 else "B" for x in range(100)
+        "A" if x < 500 else "B" for x in range(1000)
     ],  # 50 'A's followed by 50 'B's
 }
+
 df = pd.DataFrame(data)
 
 result = abalytics.analyze_independent_groups(

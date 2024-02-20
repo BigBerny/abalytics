@@ -1,4 +1,8 @@
+from typing import Optional, List
+
 import pandas as pd
+from pydantic import BaseModel, Field
+
 from .significance_tests import (
     is_dichotomous,
     is_numeric,
@@ -19,39 +23,32 @@ from .significance_tests import (
     get_friedman_significance,
     get_nemenyi_results,
 )
-from typing import Optional, List
 
 
-class AnalysisResults:
-    """
-    A class to store and manage the results of statistical analyses.
-
-    Attributes:
-        significant_results (List): A list of significant results from the statistical tests.
-        info (str): Additional information or notes regarding the analysis.
-        sample_size (int): The sample size used in the analysis.
-        dichotomous_flag (bool): Indicates if the data analyzed is dichotomous.
-        levene_flag (bool): Indicates if Levene's test for homogeneity of variances is significant.
-        gaussian_flag (bool): Indicates if the data follows a Gaussian distribution.
-    """
-
-    def __init__(
-        self,
-        significant_results: Optional[List] = None,
-        info: Optional[str] = None,
-        sample_size: Optional[int] = None,
-        dichotomous_flag: Optional[bool] = None,
-        levene_flag: Optional[bool] = None,
-        gaussian_flag: Optional[bool] = None,
-    ):
-        self.significant_results = (
-            significant_results if significant_results is not None else []
-        )
-        self.info = info
-        self.sample_size = sample_size
-        self.dichotomous_flag = dichotomous_flag
-        self.levene_flag = levene_flag
-        self.gaussian_flag = gaussian_flag
+class AnalysisResults(BaseModel):
+    significant_results: Optional[List] = Field(
+        default=[],
+        description="A list of significant results from the statistical tests.",
+    )
+    info: Optional[str] = Field(
+        default=None,
+        description="Additional information or notes regarding the analysis.",
+    )
+    sample_size: Optional[int] = Field(
+        default=None, description="The sample size used in the analysis."
+    )
+    dichotomous_flag: Optional[bool] = Field(
+        default=None,
+        description="Indicates if the data analyzed is dichotomous.",
+    )
+    levene_flag: Optional[bool] = Field(
+        default=None,
+        description="Indicates if Levene's test for homogeneity of variances is significant.",
+    )
+    gaussian_flag: Optional[bool] = Field(
+        default=None,
+        description="Indicates if the data follows a Gaussian distribution.",
+    )
 
 
 def analyze_independent_groups(
@@ -85,11 +82,10 @@ def analyze_independent_groups(
             "Warning: p_value_threshold is set to a value higher than the conventional alpha level of 0.05."
         )
 
-    try:
-        df[variable_to_analyze]
-        df[group_column]
-    except KeyError as e:
-        print(f"Column not found in DataFrame: {e}")
+    if variable_to_analyze not in df.columns or group_column not in df.columns:
+        print(
+            f"Both columns {variable_to_analyze} and {group_column} have to be present in the DataFrame."
+        )
         return None
 
     df = df.dropna(subset=[variable_to_analyze])
@@ -109,7 +105,9 @@ def analyze_independent_groups(
     # Check if the variable is dichotomous (e.g. boolean)
     elif dichotomous_flag := is_dichotomous(df, variable_to_analyze):
         # Perform chi-square test
-        pvalue = get_chi_square_significance(df, group_column, variable_to_analyze)
+        pvalue = get_chi_square_significance(
+            df, group_column, variable_to_analyze
+        )
         if pvalue < p_value_threshold:
             results = get_chi_square_posthoc_results(
                 df, group_column, variable_to_analyze, p_value_threshold
@@ -119,7 +117,9 @@ def analyze_independent_groups(
         if levene_flag := is_levene_significant(
             df, group_column, variable_to_analyze, p_value_threshold
         ):
-            pvalue = get_welch_anova_significance(df, group_column, variable_to_analyze)
+            pvalue = get_welch_anova_significance(
+                df, group_column, variable_to_analyze
+            )
             if pvalue < p_value_threshold:
                 results = get_games_howell_posthoc_results(
                     df, group_column, variable_to_analyze, p_value_threshold
@@ -158,12 +158,12 @@ def analyze_independent_groups(
         significant_results = []
 
     return AnalysisResults(
-        significant_results,
-        info,
-        sample_size,
-        dichotomous_flag,
-        levene_flag,
-        gaussian_flag,
+        significant_results=significant_results,
+        info=info,
+        sample_size=sample_size,
+        dichotomous_flag=dichotomous_flag,
+        levene_flag=levene_flag,
+        gaussian_flag=gaussian_flag,
     )
 
 
@@ -196,11 +196,13 @@ def analyze_dependent_groups(
             "Warning: p_value_threshold is set to a value higher than the conventional alpha level of 0.05."
         )
 
-    try:
-        for variable in variables_to_compare:
-            df[variable]
-    except KeyError as e:
-        print(f"Column not found in DataFrame: {e}")
+    missing_columns = [
+        variable
+        for variable in variables_to_compare
+        if variable not in df.columns
+    ]
+    if missing_columns:
+        print(f"Columns not found in DataFrame: {', '.join(missing_columns)}")
         return None
 
     df = df.dropna(subset=variables_to_compare)
@@ -210,9 +212,13 @@ def analyze_dependent_groups(
     dichotomous_flag = False
     levene_flag = False
     gaussian_flag = False
+    results = None
 
     # Check if any variable has less than the minimum sample size
-    if any(df[variable].count() < min_sample_size for variable in variables_to_compare):
+    if any(
+        df[variable].count() < min_sample_size
+        for variable in variables_to_compare
+    ):
         info = "not enough data"
     # Check if the variables are dichotomous (e.g. boolean)
     elif all(is_dichotomous(df, variable) for variable in variables_to_compare):
@@ -227,7 +233,9 @@ def analyze_dependent_groups(
             is_gaussian(df, variable, p_value_threshold)
             for variable in variables_to_compare
         ):
-            pvalue = get_repeated_measures_anova_significance(df, variables_to_compare)
+            pvalue = get_repeated_measures_anova_significance(
+                df, variables_to_compare
+            )
             if pvalue < p_value_threshold:
                 pvalue, results = get_repeated_measures_anova_posthoc_results(
                     df, variables_to_compare, p_value_threshold
@@ -254,10 +262,10 @@ def analyze_dependent_groups(
     significant_results = results.significant_results if results else []
 
     return AnalysisResults(
-        significant_results,
-        info,
-        sample_size,
-        dichotomous_flag,
-        levene_flag,
-        gaussian_flag,
+        significant_results=significant_results,
+        info=info,
+        sample_size=sample_size,
+        dichotomous_flag=dichotomous_flag,
+        levene_flag=levene_flag,
+        gaussian_flag=gaussian_flag,
     )

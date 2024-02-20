@@ -1,57 +1,58 @@
+from itertools import combinations
+
+# Define classes to structure the results of posthoc tests
+from typing import List, Optional
+from typing import Tuple
+
 import pandas as pd
-from scipy import stats
-from scipy.stats import normaltest, chi2_contingency, wilcoxon, friedmanchisquare
+from pingouin import pairwise_gameshowell, welch_anova
+from pydantic import BaseModel
 from scikit_posthocs import posthoc_dunn, posthoc_nemenyi_friedman
+from scipy import stats
+from scipy.stats import (
+    normaltest,
+    chi2_contingency,
+    wilcoxon,
+    friedmanchisquare,
+)
+from statsmodels.sandbox.stats.multicomp import multipletests
 from statsmodels.stats.anova import AnovaRM
 from statsmodels.stats.contingency_tables import mcnemar
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from statsmodels.stats.proportion import proportions_ztest
-from pingouin import pairwise_gameshowell, welch_anova
-from itertools import combinations
-from typing import List, Dict, Union, Any, Tuple
-from statsmodels.sandbox.stats.multicomp import multipletests
-from collections import namedtuple
 
 
-# Define classes to structure the results of posthoc tests
-class PosthocResult:
-    """Represents a single posthoc test result."""
-
-    def __init__(
-        self, result_pretty_text: str, p_value: float, groups: List["GroupResult"]
-    ):
-        self.result_pretty_text = result_pretty_text
-        self.p_value = p_value
-        self.groups = groups
-
-
-class GroupResult:
+class GroupResult(BaseModel):
     """Represents the result for a single group within a posthoc test."""
 
-    def __init__(
-        self,
-        name: str,
-        sample_size: int,
-        mean: float,
-        median: Union[float, None] = None,
-    ):
-        self.name = name
-        self.sample_size = sample_size
-        self.mean = mean
-        self.median = median
+    name: str
+    sample_size: int
+    mean: float
+    median: Optional[float] = None
 
 
-class PosthocResults:
+class PosthocResult(BaseModel):
+    """Represents a single posthoc test result."""
+
+    result_pretty_text: str
+    p_value: float
+    groups: List[GroupResult]
+
+
+class PosthocResults(BaseModel):
     """Container for multiple posthoc test results."""
 
-    def __init__(self):
-        self.significant_results = []
+    significant_results: List[PosthocResult] = []
 
     def add_result(
-        self, result_pretty_text: str, p_value: float, groups_info: List[Dict[str, Any]]
+        self, result_pretty_text: str, p_value: float, groups_info: List[dict]
     ):
         groups = [GroupResult(**group) for group in groups_info]
-        result = PosthocResult(result_pretty_text, p_value, groups)
+        result = PosthocResult(
+            result_pretty_text=result_pretty_text,
+            p_value=p_value,
+            groups=groups,
+        )
         self.significant_results.append(result)
 
 
@@ -67,12 +68,16 @@ def is_numeric(df: pd.DataFrame, variable: str) -> bool:
 
 
 def is_gaussian(
-    df: pd.DataFrame, variable: str, p_value_threshold: float, group_column: str = None
+    df: pd.DataFrame,
+    variable: str,
+    p_value_threshold: float,
+    group_column: str = None,
 ) -> bool:
     """Check if a variable or grouped variables in a DataFrame follow a Gaussian distribution."""
     if group_column:
         return all(
-            normaltest(df[df[group_column] == group][variable])[1] >= p_value_threshold
+            normaltest(df[df[group_column] == group][variable])[1]
+            >= p_value_threshold
             for group in df[group_column].unique()
         )
     return normaltest(df[variable])[1] >= p_value_threshold
@@ -84,6 +89,7 @@ def get_chi_square_significance(
     """Calculate the chi-square test significance for a given variable and group."""
     contingency_table = pd.crosstab(df[group_column], df[variable])
     return chi2_contingency(contingency_table)[1]
+
 
 def get_chi_square_posthoc_results(
     df: pd.DataFrame, group_column: str, variable: str, p_value_threshold: float
@@ -97,11 +103,16 @@ def get_chi_square_posthoc_results(
     ]
     p_values: List[float] = []
 
-    assert set(contingency_table.columns).issubset({0, 1, False, True}), "Columns must be 0/1 or False/True."
+    assert set(contingency_table.columns).issubset(
+        {0, 1, False, True}
+    ), "Columns must be 0/1 or False/True."
 
     for group_a, group_b in group_combinations:
         true_or_one = 1 if 1 in contingency_table.columns else True
-        count = [contingency_table.loc[group_a, true_or_one], contingency_table.loc[group_b, true_or_one]]
+        count = [
+            contingency_table.loc[group_a, true_or_one],
+            contingency_table.loc[group_b, true_or_one],
+        ]
         nobs = [
             contingency_table.loc[group_a].sum(),
             contingency_table.loc[group_b].sum(),
@@ -150,7 +161,10 @@ def get_chi_square_posthoc_results_new(
     for group_a, group_b in group_combinations:
         if 1 not in contingency_table.columns:
             continue
-        count = [contingency_table.loc[group_a, 1], contingency_table.loc[group_b, 1]]
+        count = [
+            contingency_table.loc[group_a, 1],
+            contingency_table.loc[group_b, 1],
+        ]
         nobs = [
             contingency_table.loc[group_a].sum(),
             contingency_table.loc[group_b].sum(),
@@ -198,7 +212,8 @@ def is_levene_significant(
     """
     # Extract data for each group
     data_groups = [
-        df[df[group_column] == group][variable] for group in df[group_column].unique()
+        df[df[group_column] == group][variable]
+        for group in df[group_column].unique()
     ]
     # Perform Levene's test
     _, p_value = stats.levene(*data_groups)
@@ -221,7 +236,9 @@ def get_welch_anova_significance(
     - float: The p-value from Welch's ANOVA.
     """
     # Perform Welch's ANOVA and return the p-value
-    return welch_anova(data=df, dv=variable, between=group_column).loc[0, "p-unc"]
+    return welch_anova(data=df, dv=variable, between=group_column).loc[
+        0, "p-unc"
+    ]
 
 
 def get_games_howell_posthoc_results(
@@ -246,7 +263,9 @@ def get_games_howell_posthoc_results(
     )
     # Aggregate group statistics
     group_stats = (
-        df.groupby(group_column)[variable].agg(["mean", "median", "size"]).reset_index()
+        df.groupby(group_column)[variable]
+        .agg(["mean", "median", "size"])
+        .reset_index()
     )
 
     # Filter significant results and add to posthoc results
@@ -254,8 +273,12 @@ def get_games_howell_posthoc_results(
         games_howell_results["pval"] < p_value_threshold
     ]
     for _, row in significant_results.iterrows():
-        group_a_stats = group_stats[group_stats[group_column] == row["A"]].iloc[0]
-        group_b_stats = group_stats[group_stats[group_column] == row["B"]].iloc[0]
+        group_a_stats = group_stats[group_stats[group_column] == row["A"]].iloc[
+            0
+        ]
+        group_b_stats = group_stats[group_stats[group_column] == row["B"]].iloc[
+            0
+        ]
         groups_info = sorted(
             [
                 {
@@ -295,7 +318,8 @@ def get_oneway_anova_significance(
     - float: The p-value from the one-way ANOVA test.
     """
     group_data = [
-        df[df[group_column] == group][variable] for group in df[group_column].unique()
+        df[df[group_column] == group][variable]
+        for group in df[group_column].unique()
     ]
     _, p_value = stats.f_oneway(*group_data)
     return p_value
@@ -316,7 +340,8 @@ def get_crushal_wallis_significance(
     - float: The p-value from the Kruskal-Wallis H-test.
     """
     group_data = [
-        df[df[group_column] == group][variable] for group in df[group_column].unique()
+        df[df[group_column] == group][variable]
+        for group in df[group_column].unique()
     ]
     _, p_value = stats.kruskal(*group_data)
     return p_value
@@ -342,14 +367,20 @@ def get_tukeyhsd_posthoc_results(
         endog=df[variable], groups=df[group_column], alpha=p_value_threshold
     )
     group_stats = (
-        df.groupby(group_column)[variable].agg(["mean", "median", "size"]).reset_index()
+        df.groupby(group_column)[variable]
+        .agg(["mean", "median", "size"])
+        .reset_index()
     )
 
     significant_results = tukey._results_df[tukey._results_df["reject"]]
     for _, row in significant_results.iterrows():
         group_a, group_b = row["group1"], row["group2"]
-        group_a_stats = group_stats.loc[group_stats[group_column] == group_a].iloc[0]
-        group_b_stats = group_stats.loc[group_stats[group_column] == group_b].iloc[0]
+        group_a_stats = group_stats.loc[
+            group_stats[group_column] == group_a
+        ].iloc[0]
+        group_b_stats = group_stats.loc[
+            group_stats[group_column] == group_b
+        ].iloc[0]
         groups_info = sorted(
             [
                 {
@@ -369,7 +400,9 @@ def get_tukeyhsd_posthoc_results(
             reverse=True,
         )
         result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={row['p-adj']:.3f})"
-        posthoc_results.add_result(result_pretty_text, row["p-adj"], groups_info)
+        posthoc_results.add_result(
+            result_pretty_text, row["p-adj"], groups_info
+        )
 
     return posthoc_results
 
@@ -394,10 +427,12 @@ def get_dunn_posthoc_results(
         df, val_col=variable, group_col=group_column, p_adjust="holm"
     )
     group_stats = (
-        df.groupby(group_column)[variable].agg(["mean", "median", "size"]).reset_index()
+        df.groupby(group_column)[variable]
+        .agg(["mean", "median", "size"])
+        .reset_index()
     )
 
-    for group_pair, p_value in enumerate(dunn_results.values.flatten()):        
+    for group_pair, p_value in enumerate(dunn_results.values.flatten()):
         group_a, group_b = divmod(group_pair, dunn_results.shape[1])
         if p_value < p_value_threshold:
             group_a_name = group_stats.iloc[group_a][group_column]
@@ -551,7 +586,9 @@ def get_repeated_measures_anova_posthoc_results(
             # Sort groups by mean for consistent presentation
             groups_info.sort(key=lambda x: x["mean"], reverse=True)
             result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_val_corrected:.3f})"
-            posthoc_results.add_result(result_pretty_text, p_val_corrected, groups_info)
+            posthoc_results.add_result(
+                result_pretty_text, p_val_corrected, groups_info
+            )
 
     return posthoc_results
 
@@ -636,7 +673,9 @@ def get_nemenyi_results(
     posthoc_results = PosthocResults()
     posthoc = posthoc_nemenyi_friedman(df[variables_to_compare])
 
-    for (i, var1), (j, var2) in combinations(enumerate(variables_to_compare), 2):
+    for (i, var1), (j, var2) in combinations(
+        enumerate(variables_to_compare), 2
+    ):
         posthoc_p_value = posthoc.iloc[i, j]
         if posthoc_p_value < p_value_threshold:
             groups_info = [
@@ -651,6 +690,8 @@ def get_nemenyi_results(
             groups_info.sort(key=lambda x: x["mean"], reverse=True)
 
             result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={posthoc_p_value:.3f})"
-            posthoc_results.add_result(result_pretty_text, posthoc_p_value, groups_info)
+            posthoc_results.add_result(
+                result_pretty_text, posthoc_p_value, groups_info
+            )
 
     return posthoc_results

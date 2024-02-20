@@ -237,7 +237,7 @@ def analyze_dependent_groups(
                 df, variables_to_compare
             )
             if pvalue < p_value_threshold:
-                pvalue, results = get_repeated_measures_anova_posthoc_results(
+                results = get_repeated_measures_anova_posthoc_results(
                     df, variables_to_compare, p_value_threshold
                 )
         elif len(variables_to_compare) == 2:

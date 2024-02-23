@@ -133,7 +133,7 @@ def get_chi_square_posthoc_results(
         )
 
         if p_value < p_value_threshold:
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.1f}%) vs {groups_info[1]['name']} ({groups_info[1]['mean']:.1f}%) (p={p_value:.3f})"
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.1f}%) > {groups_info[1]['name']} ({groups_info[1]['mean']:.1f}%) (p={p_value:.3f})"
             posthoc_results.add_result(result_pretty_text, p_value, groups_info)
 
     if len(p_values) == 0:

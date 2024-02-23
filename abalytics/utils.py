@@ -1,5 +1,6 @@
 from .significance_tests import PosthocResults
 from typing import Optional, List
+import pandas as pd
 
 
 def get_table_header(max_identifier_length) -> str:
@@ -96,3 +97,29 @@ def format_results_as_table(
             )
     output_string += "\n".join(output_results)
     return output_string
+
+
+def convert_long_to_wide(
+    df: pd.DataFrame, index_col: str, columns_col: str, flatten_columns: bool = True
+) -> pd.DataFrame:
+    """
+    Converts a DataFrame from long format to wide format, turning all columns into 'column_group' format.
+    Optionally flattens multi-level columns into single-level.
+
+    Parameters:
+    df (pd.DataFrame): The DataFrame in long format.
+    index_col (str): The name of the column to use as the identifier (index) in the wide format.
+    columns_col (str): The name of the column that contains the group names in the long format.
+    flatten_columns (bool, optional): Whether to flatten multi-level columns into single-level. Defaults to True.
+
+    Returns:
+    pd.DataFrame: The DataFrame converted to wide format, with optional column flattening.
+    """
+    # Create a pivot table with multi-level columns
+    wide_df = df.pivot_table(index=index_col, columns=columns_col, aggfunc='first')
+
+    if flatten_columns:
+        # Flatten the multi-level columns and create combined column names
+        wide_df.columns = ["{}_{}".format(col[0], col[1]) for col in wide_df.columns.values]
+
+    return wide_df.reset_index()

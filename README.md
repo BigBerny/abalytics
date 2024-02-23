@@ -8,6 +8,7 @@ ABalytics is a Python package designed for statistical analysis, particularly fo
 - **Significance Tests**: Includes a variety of significance tests such as Chi-Square, Welch's ANOVA, and Kruskal-Wallis, to accurately determine the significance of results.
 - **Posthoc Analysis**: Offers posthoc analysis methods like Tukey's HSD, Dunn's test, and Games-Howell, for detailed examination following significance tests.
 - **Normality and Homogeneity Checks**: Performs checks for Gaussian distribution and homogeneity of variances using Levene's test, which are critical for selecting the right tests.
+- **Data Transformation**: Provides functionality to convert data from long to wide format, facilitating analysis of dependent groups.
 - **Pretty Text Output**: Generates a formatted text output with the results of the statistical tests, facilitating interpretation and reporting.
 
 ## Installation
@@ -18,65 +19,93 @@ pip install abalytics
 ```
 
 ## Usage
-
-To use ABalytics, import it:
-```python
-import abalytics
-```
-
 ### Analyzing Results
 
-To analyze your A/B testing results, you can use the two functions. 
-`analyze_independent_groups` takes a pandas DataFrame, the name of the column containing the variable to analyze, the name of the column containing the grouping variable, and an optional p-value threshold (default is 0.05) and min_sample_size (default is 25).
-`analyze_dependent_groups` takes a pandas DataFrame, the names of the columns to compare, and an optional p-value threshold (default is 0.05) and min_sample_size (default is 25).
+ABalytics provides two main functions for analyzing A/B testing results: `analyze_independent_groups` and `analyze_dependent_groups`.
 
-Here's an example of how to use `analyze_independent_groups`:
+#### Independent Groups Analysis
+
+`analyze_independent_groups` is used for analyzing data where the groups are independent of each other. It takes a pandas DataFrame, the name of the column containing the variable to analyze, the name of the column containing the grouping variable, and optional parameters for p-value threshold and minimum sample size.
+
+Example:
 ```python
-import abalytics
+from abalytics import analyze_independent_groups
 import pandas as pd
 
-#Load your data into a pandas DataFrame
+# Load your data into a pandas DataFrame
 df = pd.read_csv('your_data.csv')
 
-#Analyze the results
-analysis_results = abalytics.analyze_independent_groups(
+# Analyze the results
+analysis_results = analyze_independent_groups(
     df,
-    variable_to_analyze = "order_value",
-    group_column = "ab_test_group",
+    variable_to_analyze="order_value",
+    group_column="ab_test_group",
 )
 ```
-The `get_results` function will return an `AnalysisResults` object containing the following attributes:
-- `significant_results`: A list of results of the statistical significance tests.
-- `info`: A string containing information about the data if no results were found.
-- `sample_size`: The sample size of the data.
-- `dichotomous_flag`: A boolean flag indicating if the data is dichotomous (e.g. boolean).
-- `levene_flag`: A boolean flag indicating if Levene's test for homogeneity of variances is significant.
-- `gaussian_flag`: A boolean flag indicating if the data has a Gaussian distribution.
+
+
+#### Dependent Groups Analysis
+
+`analyze_dependent_groups` is used for analyzing data where the groups are dependent, such as repeated measures on the same subjects. It requires data in wide format. If your data is in long format, you can use the `convert_long_to_wide` function in `abalytics.utils` to convert it. The `analyze_dependent_groups` function takes a pandas DataFrame, the names of the columns to compare, and optional parameters for p-value threshold and minimum sample size.
+
+Example:
+```python
+from abalytics import analyze_dependent_groups
+import pandas as pd
+
+# Load your data into a pandas DataFrame
+df = pd.read_csv('your_data.csv')
+
+# Analyze the results
+analysis_results = analyze_dependent_groups(
+    df,
+    variables_to_compare=["pre_test_score", "post_test_score"],
+)
+```
+
+### Data Transformation
+
+The `convert_long_to_wide` function in `abalytics.utils` is designed to transform data from long format to wide format, with an option to keep multi-level columns or flatten them. `analyze_dependent_groups` requires data in wide format to operate correctly.
+
+Example:
+```python
+from abalytics.utils import convert_long_to_wide
+import pandas as pd
+
+# Assuming 'df_long' is your pandas DataFrame in long format
+df_wide = convert_long_to_wide(
+    df_long,
+    index_col="subject_id",
+    columns_col="condition",
+    flatten_columns=True # Set to False if you wish to keep multi-level columns
+)
+```
 
 ### Generating Pretty Text Output
 
 To get a formatted text output of your results, you can use the `utils.format_results_as_table` function.
 
-Here's an example of how to use format_results_as_table`:
+Example:
 ```python
-from abalytics
+from abalytics.utils import format_results_as_table
+from abalytics import analyze_independent_groups
+import pandas as pd
 
-#Load your data into a pandas DataFrame
+# Load your data into a pandas DataFrame
 df = pd.read_csv('your_data.csv')
 
-#Analyze the results
-analysis_results = abalytics.analyze_independent_groups(
+# Analyze the results
+analysis_results = analyze_independent_groups(
     df,
-    variable_to_analyze = "order_value",
-    group_column = "ab_test_group",
+    variable_to_analyze="order_value",
+    group_column="ab_test_group",
 )
 
-# Assuming 'df' is your pandas DataFrame
-pretty_text = abalytics.utils.format_results_as_table(
+# Generate pretty text output
+pretty_text = format_results_as_table(
     abalytics_results=[analysis_results],
     identifiers_list=[["A/B Test 1", "Mobile"]],
 )
-
 print(pretty_text)
 ```
 Executing this code will output a neatly formatted table displaying the outcomes of the statistical significance tests. The table includes the sample size, indicators for Levene's test and Gaussian distribution, and the test results.

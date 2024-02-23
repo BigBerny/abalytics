@@ -1,11 +1,8 @@
 name: Publish Python Package
 
 on:
-  push:
-    branches:
-      - main  # or the name of your default branch
   release:
-    types: [created]
+    types: [published]
 
 jobs:
   deploy:

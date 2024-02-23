@@ -1,9 +1,10 @@
-from .analysis import get_results_pretty_text, get_results_pretty_text_header, get_results
+from .analysis import analyze_independent_groups, analyze_dependent_groups
 from . import significance_tests
+from . import utils
 
 __all__ = [
-    'get_results'
-    'get_results_pretty_text',
-    'get_results_pretty_text_header',
-    'significance_tests'
+    'analyze_dependent_groups',
+    'analyze_independent_groups',
+    'significance_tests',
+    'utils'
 ]

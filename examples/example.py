@@ -1,4 +1,5 @@
-import abalytics
+from abalytics import analyze_independent_groups, analyze_dependent_groups
+from abalytics.utils import format_results_as_table
 import pandas as pd
 import numpy as np
 
@@ -12,14 +13,14 @@ data = {
 
 df = pd.DataFrame(data)
 
-result = abalytics.analyze_independent_groups(
+result = analyze_independent_groups(
     df,
     "variable",
     "group",
     p_value_threshold=0.3,
 )
 print(
-    abalytics.utils.format_results_as_table([result], identifiers_list=[["Test 1 B"]])
+    format_results_as_table([result], identifiers_list=[["Test 1 B"]])
 )
 
 
@@ -34,14 +35,14 @@ data = {
 }
 df = pd.DataFrame(data)
 
-result = abalytics.analyze_independent_groups(
+result = analyze_independent_groups(
     df,
     "variable",
     "group",
     p_value_threshold=0.3,
 )
 print(
-    abalytics.utils.format_results_as_table([result], identifiers_list=[["Test 2 B"]])
+    format_results_as_table([result], identifiers_list=[["Test 2 B"]])
 )
 
 
@@ -54,9 +55,9 @@ df = pd.DataFrame(data)
 
 print("A/B test example")
 
-result = abalytics.analyze_dependent_groups(df, ["variable1", "variable2"])
+result = analyze_dependent_groups(df, ["variable1", "variable2"])
 print(
-    abalytics.utils.format_results_as_table(
+    format_results_as_table(
         [result], identifiers_list=[["Test Identifier"]]
     )
 )

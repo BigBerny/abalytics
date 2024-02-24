@@ -14,8 +14,8 @@ def get_table_header(max_identifier_length: int) -> str:
     str: A formatted text string with the header of the pretty text table.
     """
     if max_identifier_length > 0:
-        return f"{'Identifier':<{max_identifier_length}}{'n':>10}    {'Levene':<6}    {'Gaussian':<8}    {'Result'}"
-    return f"{'n':>10}    {'Levene':<6}    {'Gaussian':<8}    {'Result'}"
+        return f"{'Identifier':<{max_identifier_length}}{'n':>10}    {'Result'}"
+    return f"{'n':>10}    {'Result'}"
 
 
 def format_results_as_table(
@@ -59,6 +59,7 @@ def format_results_as_table(
         s.ljust(max_identifier_length) for s in identifier_string_list
     ]
 
+    output_string = ""
     if header:
         output_string += get_table_header(max_identifier_length)
         output_string += "\n"
@@ -83,17 +84,17 @@ def format_results_as_table(
             for i, result in enumerate(significant_results):
                 if i == 0:
                     output_results.append(
-                        f"{identifier_string}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}    {result.result_pretty_text}"
+                        f"{identifier_string}{sample_size:>10}    {result.result_pretty_text}"
                     )
                 else:
                     output_results.append(
-                        f"{len(identifier_string) * ' '}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}    {result.result_pretty_text}"
+                        f"{len(identifier_string) * ' '}{sample_size:>10}    {result.result_pretty_text}"
                     )
         else:
             output_results.append(
-                f"{identifier_string}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}    {info}"
+                f"{identifier_string}{sample_size:>10}    {info}"
             )
-    output_string = "\n".join(output_results)
+    output_string += "\n".join(output_results)
     return output_string
 
 

@@ -12,7 +12,7 @@ from .significance_tests import (
     get_chi_square_posthoc_results,
     get_welch_anova_significance,
     get_oneway_anova_significance,
-    get_crushal_wallis_significance,
+    get_kruskal_wallis_significance,
     get_games_howell_posthoc_results,
     get_tukeyhsd_posthoc_results,
     get_dunn_posthoc_results,
@@ -109,6 +109,7 @@ def analyze_independent_groups(
             df, group_column, variable_to_analyze
         )
         if pvalue < p_value_threshold:
+            info = f"A priori test: Chi-square, p-value = {pvalue:.3f}"
             results = get_chi_square_posthoc_results(
                 df, group_column, variable_to_analyze, p_value_threshold
             )
@@ -121,6 +122,7 @@ def analyze_independent_groups(
                 df, group_column, variable_to_analyze
             )
             if pvalue < p_value_threshold:
+                info = f"A priori test: Welch's ANOVA, p-value = {pvalue:.3f}"
                 results = get_games_howell_posthoc_results(
                     df, group_column, variable_to_analyze, p_value_threshold
                 )
@@ -132,14 +134,16 @@ def analyze_independent_groups(
                 df, group_column, variable_to_analyze
             )
             if pvalue < p_value_threshold:
+                info = f"A priori test: One-way ANOVA, p-value = {pvalue:.3f}"
                 results = get_tukeyhsd_posthoc_results(
                     df, group_column, variable_to_analyze, p_value_threshold
                 )
         else:
-            pvalue = get_crushal_wallis_significance(
+            pvalue = get_kruskal_wallis_significance(
                 df, group_column, variable_to_analyze
             )
             if pvalue < p_value_threshold:
+                info = f"A priori test: Kruskal-Wallis, p-value = {pvalue:.3f}"
                 results = get_dunn_posthoc_results(
                     df, group_column, variable_to_analyze, p_value_threshold
                 )
@@ -237,6 +241,7 @@ def analyze_dependent_groups(
                 df, variables_to_compare
             )
             if pvalue < p_value_threshold:
+                info = f"A priori test: Repeated measures ANOVA, p-value = {pvalue:.3f}"
                 results = get_repeated_measures_anova_posthoc_results(
                     df, variables_to_compare, p_value_threshold
                 )
@@ -247,6 +252,7 @@ def analyze_dependent_groups(
         else:
             pvalue = get_friedman_significance(df, variables_to_compare)
             if pvalue < p_value_threshold:
+                info = f"A priori test: Friedman, p-value = {pvalue:.3f}"
                 results = get_nemenyi_results(
                     df, variables_to_compare, p_value_threshold
                 )

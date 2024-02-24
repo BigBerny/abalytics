@@ -3,7 +3,7 @@ from typing import Optional, List
 import pandas as pd
 
 
-def get_table_header(max_identifier_length) -> str:
+def get_table_header(max_identifier_length: int) -> str:
     """
     Returns a text with the results of the statistical significance tests.
 
@@ -23,7 +23,7 @@ def format_results_as_table(
     header: bool = True,
     identifiers_list: Optional[List[List[str]]] = None,
     show_only_significant_results: bool = False,
-):
+) -> str:
     """
     Returns a text with the results of the statistical significance tests.
 
@@ -59,8 +59,6 @@ def format_results_as_table(
         s.ljust(max_identifier_length) for s in identifier_string_list
     ]
 
-    output_string = ""
-
     if header:
         output_string += get_table_header(max_identifier_length)
         output_string += "\n"
@@ -95,7 +93,7 @@ def format_results_as_table(
             output_results.append(
                 f"{identifier_string}{sample_size:>10}    {levene_output:<6}    {gaussian_output:<8}    {info}"
             )
-    output_string += "\n".join(output_results)
+    output_string = "\n".join(output_results)
     return output_string
 
 
@@ -116,10 +114,12 @@ def convert_long_to_wide(
     pd.DataFrame: The DataFrame converted to wide format, with optional column flattening.
     """
     # Create a pivot table with multi-level columns
-    wide_df = df.pivot_table(index=index_col, columns=columns_col, aggfunc='first')
+    wide_df = df.pivot_table(index=index_col, columns=columns_col, aggfunc="first")
 
     if flatten_columns:
         # Flatten the multi-level columns and create combined column names
-        wide_df.columns = ["{}_{}".format(col[0], col[1]) for col in wide_df.columns.values]
+        wide_df.columns = [
+            "{}_{}".format(col[0], col[1]) for col in wide_df.columns.values
+        ]
 
     return wide_df.reset_index()

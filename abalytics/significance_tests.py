@@ -76,8 +76,7 @@ def is_gaussian(
     """Check if a variable or grouped variables in a DataFrame follow a Gaussian distribution."""
     if group_column:
         return all(
-            normaltest(df[df[group_column] == group][variable])[1]
-            >= p_value_threshold
+            normaltest(df[df[group_column] == group][variable])[1] >= p_value_threshold
             for group in df[group_column].unique()
         )
     return normaltest(df[variable])[1] >= p_value_threshold
@@ -94,76 +93,21 @@ def get_chi_square_significance(
 def get_chi_square_posthoc_results(
     df: pd.DataFrame, group_column: str, variable: str, p_value_threshold: float
 ) -> PosthocResults:
-    posthoc_results = PosthocResults()
-    contingency_table = pd.crosstab(df[group_column], df[variable])
-    group_combinations = [
-        (group_a, group_b)
-        for i, group_a in enumerate(contingency_table.index)
-        for group_b in contingency_table.index[i + 1 :]
-    ]
-    p_values: List[float] = []
-
-    assert set(contingency_table.columns).issubset(
-        {0, 1, False, True}
-    ), "Columns must be 0/1 or False/True."
-
-    for group_a, group_b in group_combinations:
-        true_or_one = 1 if 1 in contingency_table.columns else True
-        count = [
-            contingency_table.loc[group_a, true_or_one],
-            contingency_table.loc[group_b, true_or_one],
-        ]
-        nobs = [
-            contingency_table.loc[group_a].sum(),
-            contingency_table.loc[group_b].sum(),
-        ]
-        rate_a = (count[0] / nobs[0]) * 100
-        rate_b = (count[1] / nobs[1]) * 100
-
-        _, p_value = proportions_ztest(count, nobs)
-        p_values.append(p_value)
-
-        groups_info = sorted(
-            [
-                {"name": group_a, "sample_size": nobs[0], "mean": rate_a},
-                {"name": group_b, "sample_size": nobs[1], "mean": rate_b},
-            ],
-            key=lambda x: x["mean"],
-            reverse=True,
-        )
-
-        if p_value < p_value_threshold:
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.1f}%) > {groups_info[1]['name']} ({groups_info[1]['mean']:.1f}%) (p={p_value:.3f})"
-            posthoc_results.add_result(result_pretty_text, p_value, groups_info)
-
-    if len(p_values) == 0:
-        return posthoc_results
-    # Apply Bonferroni correction
-    corrected_alpha = p_value_threshold / len(p_values)
-    posthoc_results.significant_results = [
-        result
-        for result in posthoc_results.significant_results
-        if result.p_value < corrected_alpha
-    ]
-
-    return posthoc_results
-
-
-def get_chi_square_posthoc_results_new(
-    df: pd.DataFrame, group_column: str, variable: str, p_value_threshold: float
-) -> PosthocResults:
     """Perform posthoc analysis for chi-square test results."""
     posthoc_results = PosthocResults()
     contingency_table = pd.crosstab(df[group_column], df[variable])
     group_combinations = list(combinations(contingency_table.index, 2))
     p_values = []
 
+    # Determine whether to use True/False or 0/1 based on the columns present in the contingency table
+    true_or_one = 1 if 1 in contingency_table.columns else True
+
     for group_a, group_b in group_combinations:
-        if 1 not in contingency_table.columns:
+        if true_or_one not in contingency_table.columns:
             continue
         count = [
-            contingency_table.loc[group_a, 1],
-            contingency_table.loc[group_b, 1],
+            contingency_table.loc[group_a, true_or_one],
+            contingency_table.loc[group_b, true_or_one],
         ]
         nobs = [
             contingency_table.loc[group_a].sum(),
@@ -174,12 +118,14 @@ def get_chi_square_posthoc_results_new(
         p_values.append(p_value)
 
         if p_value < p_value_threshold:
-            groups_info = [
-                {"name": group, "sample_size": nobs[i], "mean": rate}
-                for i, (group, rate) in enumerate(
-                    zip([group_a, group_b], [rate_a, rate_b])
-                )
-            ]
+            groups_info = sorted(
+                [
+                    {"name": group_a, "sample_size": nobs[0], "mean": rate_a},
+                    {"name": group_b, "sample_size": nobs[1], "mean": rate_b},
+                ],
+                key=lambda x: x["mean"],
+                reverse=True,
+            )
             result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.1f}%) > {groups_info[1]['name']} ({groups_info[1]['mean']:.1f}%) (p={p_value:.3f})"
             posthoc_results.add_result(result_pretty_text, p_value, groups_info)
 
@@ -212,8 +158,7 @@ def is_levene_significant(
     """
     # Extract data for each group
     data_groups = [
-        df[df[group_column] == group][variable]
-        for group in df[group_column].unique()
+        df[df[group_column] == group][variable] for group in df[group_column].unique()
     ]
     # Perform Levene's test
     _, p_value = stats.levene(*data_groups)
@@ -236,9 +181,7 @@ def get_welch_anova_significance(
     - float: The p-value from Welch's ANOVA.
     """
     # Perform Welch's ANOVA and return the p-value
-    return welch_anova(data=df, dv=variable, between=group_column).loc[
-        0, "p-unc"
-    ]
+    return welch_anova(data=df, dv=variable, between=group_column).loc[0, "p-unc"]
 
 
 def get_games_howell_posthoc_results(
@@ -263,9 +206,7 @@ def get_games_howell_posthoc_results(
     )
     # Aggregate group statistics
     group_stats = (
-        df.groupby(group_column)[variable]
-        .agg(["mean", "median", "size"])
-        .reset_index()
+        df.groupby(group_column)[variable].agg(["mean", "median", "size"]).reset_index()
     )
 
     # Filter significant results and add to posthoc results
@@ -273,12 +214,8 @@ def get_games_howell_posthoc_results(
         games_howell_results["pval"] < p_value_threshold
     ]
     for _, row in significant_results.iterrows():
-        group_a_stats = group_stats[group_stats[group_column] == row["A"]].iloc[
-            0
-        ]
-        group_b_stats = group_stats[group_stats[group_column] == row["B"]].iloc[
-            0
-        ]
+        group_a_stats = group_stats[group_stats[group_column] == row["A"]].iloc[0]
+        group_b_stats = group_stats[group_stats[group_column] == row["B"]].iloc[0]
         groups_info = sorted(
             [
                 {
@@ -318,8 +255,7 @@ def get_oneway_anova_significance(
     - float: The p-value from the one-way ANOVA test.
     """
     group_data = [
-        df[df[group_column] == group][variable]
-        for group in df[group_column].unique()
+        df[df[group_column] == group][variable] for group in df[group_column].unique()
     ]
     _, p_value = stats.f_oneway(*group_data)
     return p_value
@@ -340,8 +276,7 @@ def get_crushal_wallis_significance(
     - float: The p-value from the Kruskal-Wallis H-test.
     """
     group_data = [
-        df[df[group_column] == group][variable]
-        for group in df[group_column].unique()
+        df[df[group_column] == group][variable] for group in df[group_column].unique()
     ]
     _, p_value = stats.kruskal(*group_data)
     return p_value
@@ -367,20 +302,14 @@ def get_tukeyhsd_posthoc_results(
         endog=df[variable], groups=df[group_column], alpha=p_value_threshold
     )
     group_stats = (
-        df.groupby(group_column)[variable]
-        .agg(["mean", "median", "size"])
-        .reset_index()
+        df.groupby(group_column)[variable].agg(["mean", "median", "size"]).reset_index()
     )
 
     significant_results = tukey._results_df[tukey._results_df["reject"]]
     for _, row in significant_results.iterrows():
         group_a, group_b = row["group1"], row["group2"]
-        group_a_stats = group_stats.loc[
-            group_stats[group_column] == group_a
-        ].iloc[0]
-        group_b_stats = group_stats.loc[
-            group_stats[group_column] == group_b
-        ].iloc[0]
+        group_a_stats = group_stats.loc[group_stats[group_column] == group_a].iloc[0]
+        group_b_stats = group_stats.loc[group_stats[group_column] == group_b].iloc[0]
         groups_info = sorted(
             [
                 {
@@ -400,9 +329,7 @@ def get_tukeyhsd_posthoc_results(
             reverse=True,
         )
         result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={row['p-adj']:.3f})"
-        posthoc_results.add_result(
-            result_pretty_text, row["p-adj"], groups_info
-        )
+        posthoc_results.add_result(result_pretty_text, row["p-adj"], groups_info)
 
     return posthoc_results
 
@@ -427,9 +354,7 @@ def get_dunn_posthoc_results(
         df, val_col=variable, group_col=group_column, p_adjust="holm"
     )
     group_stats = (
-        df.groupby(group_column)[variable]
-        .agg(["mean", "median", "size"])
-        .reset_index()
+        df.groupby(group_column)[variable].agg(["mean", "median", "size"]).reset_index()
     )
 
     for group_pair, p_value in enumerate(dunn_results.values.flatten()):
@@ -586,9 +511,7 @@ def get_repeated_measures_anova_posthoc_results(
             # Sort groups by mean for consistent presentation
             groups_info.sort(key=lambda x: x["mean"], reverse=True)
             result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_val_corrected:.3f})"
-            posthoc_results.add_result(
-                result_pretty_text, p_val_corrected, groups_info
-            )
+            posthoc_results.add_result(result_pretty_text, p_val_corrected, groups_info)
 
     return posthoc_results
 
@@ -673,9 +596,7 @@ def get_nemenyi_results(
     posthoc_results = PosthocResults()
     posthoc = posthoc_nemenyi_friedman(df[variables_to_compare])
 
-    for (i, var1), (j, var2) in combinations(
-        enumerate(variables_to_compare), 2
-    ):
+    for (i, var1), (j, var2) in combinations(enumerate(variables_to_compare), 2):
         posthoc_p_value = posthoc.iloc[i, j]
         if posthoc_p_value < p_value_threshold:
             groups_info = [
@@ -690,8 +611,6 @@ def get_nemenyi_results(
             groups_info.sort(key=lambda x: x["mean"], reverse=True)
 
             result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={posthoc_p_value:.3f})"
-            posthoc_results.add_result(
-                result_pretty_text, posthoc_p_value, groups_info
-            )
+            posthoc_results.add_result(result_pretty_text, posthoc_p_value, groups_info)
 
     return posthoc_results

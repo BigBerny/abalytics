@@ -34,6 +34,7 @@ class GroupResult(BaseModel):
 class PosthocResult(BaseModel):
     """Represents a single posthoc test result."""
 
+    analysis_method: str
     result_pretty_text: str
     p_value: float
     groups: List[GroupResult]
@@ -45,10 +46,15 @@ class PosthocResults(BaseModel):
     significant_results: List[PosthocResult] = []
 
     def add_result(
-        self, result_pretty_text: str, p_value: float, groups_info: List[dict]
+        self,
+        analysis_method: str,
+        result_pretty_text: str,
+        p_value: float,
+        groups_info: List[dict],
     ):
         groups = [GroupResult(**group) for group in groups_info]
         result = PosthocResult(
+            analysis_method=analysis_method,
             result_pretty_text=result_pretty_text,
             p_value=p_value,
             groups=groups,
@@ -126,8 +132,10 @@ def get_chi_square_posthoc_results(
                 key=lambda x: x["mean"],
                 reverse=True,
             )
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.1f}%) > {groups_info[1]['name']} ({groups_info[1]['mean']:.1f}%) (p={p_value:.3f})"
-            posthoc_results.add_result(result_pretty_text, p_value, groups_info)
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.1f}%) > {groups_info[1]['name']} ({groups_info[1]['mean']:.1f}%)"
+            posthoc_results.add_result(
+                "Chi-square", result_pretty_text, p_value, groups_info
+            )
 
     # Apply Bonferroni correction if there are any p-values to correct
     if p_values:
@@ -234,8 +242,10 @@ def get_games_howell_posthoc_results(
             key=lambda x: x["mean"],
             reverse=True,
         )
-        result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={row['pval']:.3f})"
-        posthoc_results.add_result(result_pretty_text, row["pval"], groups_info)
+        result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
+        posthoc_results.add_result(
+            "Games-Howell", result_pretty_text, row["pval"], groups_info
+        )
 
     return posthoc_results
 
@@ -261,7 +271,7 @@ def get_oneway_anova_significance(
     return p_value
 
 
-def get_crushal_wallis_significance(
+def get_kruskal_wallis_significance(
     df: pd.DataFrame, group_column: str, variable: str
 ) -> float:
     """
@@ -328,8 +338,10 @@ def get_tukeyhsd_posthoc_results(
             key=lambda x: x["mean"],
             reverse=True,
         )
-        result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={row['p-adj']:.3f})"
-        posthoc_results.add_result(result_pretty_text, row["p-adj"], groups_info)
+        result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
+        posthoc_results.add_result(
+            "Tukey HSD", result_pretty_text, row["p-adj"], groups_info
+        )
 
     return posthoc_results
 
@@ -357,35 +369,39 @@ def get_dunn_posthoc_results(
         df.groupby(group_column)[variable].agg(["mean", "median", "size"]).reset_index()
     )
 
-    for group_pair, p_value in enumerate(dunn_results.values.flatten()):
-        group_a, group_b = divmod(group_pair, dunn_results.shape[1])
-        if p_value < p_value_threshold:
-            group_a_name = group_stats.iloc[group_a][group_column]
-            group_b_name = group_stats.iloc[group_b][group_column]
-            group_a_stats = group_stats.iloc[group_a]
-            group_b_stats = group_stats.iloc[group_b]
+    # Iterate only over the upper triangle of the matrix, excluding the diagonal
+    for i in range(dunn_results.shape[0]):
+        for j in range(i + 1, dunn_results.shape[1]):
+            p_value = dunn_results.iloc[i, j]
+            if p_value < p_value_threshold:
+                group_a_name = group_stats.iloc[i][group_column]
+                group_b_name = group_stats.iloc[j][group_column]
+                group_a_stats = group_stats.iloc[i]
+                group_b_stats = group_stats.iloc[j]
 
-            groups_info = sorted(
-                [
-                    {
-                        "name": group_a_name,
-                        "sample_size": group_a_stats["size"],
-                        "mean": group_a_stats["mean"],
-                        "median": group_a_stats["median"],
-                    },
-                    {
-                        "name": group_b_name,
-                        "sample_size": group_b_stats["size"],
-                        "mean": group_b_stats["mean"],
-                        "median": group_b_stats["median"],
-                    },
-                ],
-                key=lambda x: x["mean"],
-                reverse=True,
-            )
+                groups_info = sorted(
+                    [
+                        {
+                            "name": group_a_name,
+                            "sample_size": group_a_stats["size"],
+                            "mean": group_a_stats["mean"],
+                            "median": group_a_stats["median"],
+                        },
+                        {
+                            "name": group_b_name,
+                            "sample_size": group_b_stats["size"],
+                            "mean": group_b_stats["mean"],
+                            "median": group_b_stats["median"],
+                        },
+                    ],
+                    key=lambda x: x["mean"],
+                    reverse=True,
+                )
 
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_value:.3f})"
-            posthoc_results.add_result(result_pretty_text, p_value, groups_info)
+                result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
+                posthoc_results.add_result(
+                    "Dunn", result_pretty_text, p_value, groups_info
+                )
 
     return posthoc_results
 
@@ -429,9 +445,11 @@ def get_mcnemar_results(
             # Sort groups by mean for consistent presentation
             groups_info.sort(key=lambda x: x["mean"], reverse=True)
             # Format the result text
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_value:.3f})"
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
             # Add the result to posthoc results
-            posthoc_results.add_result(result_pretty_text, p_value, groups_info)
+            posthoc_results.add_result(
+                "McNemar", result_pretty_text, p_value, groups_info
+            )
 
     return posthoc_results
 
@@ -510,8 +528,13 @@ def get_repeated_measures_anova_posthoc_results(
             ]
             # Sort groups by mean for consistent presentation
             groups_info.sort(key=lambda x: x["mean"], reverse=True)
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_val_corrected:.3f})"
-            posthoc_results.add_result(result_pretty_text, p_val_corrected, groups_info)
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
+            posthoc_results.add_result(
+                "Repeated Measures ANOVA",
+                result_pretty_text,
+                p_val_corrected,
+                groups_info,
+            )
 
     return posthoc_results
 
@@ -553,8 +576,8 @@ def get_wilcoxon_results(
     ]
     groups_info.sort(key=lambda x: x["mean"], reverse=True)
 
-    result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={p_value:.3f})"
-    posthoc_results.add_result(result_pretty_text, p_value, groups_info)
+    result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
+    posthoc_results.add_result("Wilcoxon", result_pretty_text, p_value, groups_info)
 
     return p_value, posthoc_results
 
@@ -610,7 +633,9 @@ def get_nemenyi_results(
             ]
             groups_info.sort(key=lambda x: x["mean"], reverse=True)
 
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f}) (p={posthoc_p_value:.3f})"
-            posthoc_results.add_result(result_pretty_text, posthoc_p_value, groups_info)
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
+            posthoc_results.add_result(
+                "Nemenyi", result_pretty_text, posthoc_p_value, groups_info
+            )
 
     return posthoc_results

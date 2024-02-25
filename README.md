@@ -104,7 +104,7 @@ analysis_results = analyze_independent_groups(
 # Generate pretty text output
 pretty_text = format_results_as_table(
     abalytics_results=[analysis_results],
-    identifiers_list=[["A/B Test 1", "Mobile"]],
+    identifiers_list=[{"Test name": "A/B Test 1", "Channel": "Mobile"}],
 )
 print(pretty_text)
 ```

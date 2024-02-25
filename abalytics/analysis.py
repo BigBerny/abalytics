@@ -34,6 +34,10 @@ class AnalysisResults(BaseModel):
         default=None,
         description="Additional information or notes regarding the analysis.",
     )
+    a_priori_test: Optional[str] = Field(
+        default=None,
+        description="The name of the statistical test used in the analysis.",
+    )
     sample_size: Optional[int] = Field(
         default=None, description="The sample size used in the analysis."
     )
@@ -72,6 +76,7 @@ def analyze_independent_groups(
     AnalysisResults: An instance of the AnalysisResults class containing the following attributes:
         - significant_results: A list of results of the statistical significance tests.
         - info: A string containing information about the data if no results were found.
+        - a_priori_test: The name of the statistical test used in the analysis.
         - sample_size: The sample size of the data.
         - dichotomous_flag: A boolean flag indicating if the data is dichotomous (e.g. boolean).
         - levene_flag: A boolean flag indicating if Levene's test for homogeneity of variances is significant.
@@ -92,9 +97,10 @@ def analyze_independent_groups(
     sample_size = len(df)
     pvalue = None
     info = None
+    a_priori_test = None
     dichotomous_flag = False
-    levene_flag = False
-    gaussian_flag = False
+    levene_flag = None
+    gaussian_flag = None
     # Check if any group has less than the minimum sample size
     if (
         df.groupby(group_column)[variable_to_analyze]
@@ -109,7 +115,7 @@ def analyze_independent_groups(
             df, group_column, variable_to_analyze
         )
         if pvalue < p_value_threshold:
-            info = f"A priori test: Chi-square, p-value = {pvalue:.3f}"
+            a_priori_test = f"Chi-square, p-value = {pvalue:.3f}"
             results = get_chi_square_posthoc_results(
                 df, group_column, variable_to_analyze, p_value_threshold
             )
@@ -122,7 +128,7 @@ def analyze_independent_groups(
                 df, group_column, variable_to_analyze
             )
             if pvalue < p_value_threshold:
-                info = f"A priori test: Welch's ANOVA, p-value = {pvalue:.3f}"
+                a_priori_test = f"Welch's ANOVA, p-value = {pvalue:.3f}"
                 results = get_games_howell_posthoc_results(
                     df, group_column, variable_to_analyze, p_value_threshold
                 )
@@ -134,7 +140,7 @@ def analyze_independent_groups(
                 df, group_column, variable_to_analyze
             )
             if pvalue < p_value_threshold:
-                info = f"A priori test: One-way ANOVA, p-value = {pvalue:.3f}"
+                a_priori_test = f"One-way ANOVA, p-value = {pvalue:.3f}"
                 results = get_tukeyhsd_posthoc_results(
                     df, group_column, variable_to_analyze, p_value_threshold
                 )
@@ -143,7 +149,7 @@ def analyze_independent_groups(
                 df, group_column, variable_to_analyze
             )
             if pvalue < p_value_threshold:
-                info = f"A priori test: Kruskal-Wallis, p-value = {pvalue:.3f}"
+                a_priori_test = f"Kruskal-Wallis, p-value = {pvalue:.3f}"
                 results = get_dunn_posthoc_results(
                     df, group_column, variable_to_analyze, p_value_threshold
                 )
@@ -164,6 +170,7 @@ def analyze_independent_groups(
     return AnalysisResults(
         significant_results=significant_results,
         info=info,
+        a_priori_test=a_priori_test,
         sample_size=sample_size,
         dichotomous_flag=dichotomous_flag,
         levene_flag=levene_flag,

@@ -111,11 +111,9 @@ def analyze_independent_groups(
     # Check if the variable is dichotomous (e.g. boolean)
     elif dichotomous_flag := is_dichotomous(df, variable_to_analyze):
         # Perform chi-square test
-        pvalue = get_chi_square_significance(
-            df, group_column, variable_to_analyze
-        )
+        pvalue = get_chi_square_significance(df, group_column, variable_to_analyze)
+        a_priori_test = f"Chi-square, p-value = {pvalue:.3f}"
         if pvalue < p_value_threshold:
-            a_priori_test = f"Chi-square, p-value = {pvalue:.3f}"
             results = get_chi_square_posthoc_results(
                 df, group_column, variable_to_analyze, p_value_threshold
             )
@@ -124,11 +122,9 @@ def analyze_independent_groups(
         if levene_flag := is_levene_significant(
             df, group_column, variable_to_analyze, p_value_threshold
         ):
-            pvalue = get_welch_anova_significance(
-                df, group_column, variable_to_analyze
-            )
+            pvalue = get_welch_anova_significance(df, group_column, variable_to_analyze)
+            a_priori_test = f"Welch's ANOVA, p-value = {pvalue:.3f}"
             if pvalue < p_value_threshold:
-                a_priori_test = f"Welch's ANOVA, p-value = {pvalue:.3f}"
                 results = get_games_howell_posthoc_results(
                     df, group_column, variable_to_analyze, p_value_threshold
                 )
@@ -139,8 +135,8 @@ def analyze_independent_groups(
             pvalue = get_oneway_anova_significance(
                 df, group_column, variable_to_analyze
             )
+            a_priori_test = f"One-way ANOVA, p-value = {pvalue:.3f}"
             if pvalue < p_value_threshold:
-                a_priori_test = f"One-way ANOVA, p-value = {pvalue:.3f}"
                 results = get_tukeyhsd_posthoc_results(
                     df, group_column, variable_to_analyze, p_value_threshold
                 )
@@ -148,8 +144,8 @@ def analyze_independent_groups(
             pvalue = get_kruskal_wallis_significance(
                 df, group_column, variable_to_analyze
             )
+            a_priori_test = f"Kruskal-Wallis, p-value = {pvalue:.3f}"
             if pvalue < p_value_threshold:
-                a_priori_test = f"Kruskal-Wallis, p-value = {pvalue:.3f}"
                 results = get_dunn_posthoc_results(
                     df, group_column, variable_to_analyze, p_value_threshold
                 )
@@ -160,7 +156,7 @@ def analyze_independent_groups(
     # If no results were found, return a message
     if not "results" in locals() or len(results.significant_results) == 0:
         if pvalue is not None:
-            info = f"not significant (p={pvalue:.3f})"
+            info = f"n.s. (p={pvalue:.3f})"
     # If results were found, return them
     if "results" in locals():
         significant_results = results.significant_results
@@ -208,9 +204,7 @@ def analyze_dependent_groups(
         )
 
     missing_columns = [
-        variable
-        for variable in variables_to_compare
-        if variable not in df.columns
+        variable for variable in variables_to_compare if variable not in df.columns
     ]
     if missing_columns:
         print(f"Columns not found in DataFrame: {', '.join(missing_columns)}")
@@ -226,10 +220,7 @@ def analyze_dependent_groups(
     results = None
 
     # Check if any variable has less than the minimum sample size
-    if any(
-        df[variable].count() < min_sample_size
-        for variable in variables_to_compare
-    ):
+    if any(df[variable].count() < min_sample_size for variable in variables_to_compare):
         info = "not enough data"
     # Check if the variables are dichotomous (e.g. boolean)
     elif all(is_dichotomous(df, variable) for variable in variables_to_compare):
@@ -244,9 +235,7 @@ def analyze_dependent_groups(
             is_gaussian(df, variable, p_value_threshold)
             for variable in variables_to_compare
         ):
-            pvalue = get_repeated_measures_anova_significance(
-                df, variables_to_compare
-            )
+            pvalue = get_repeated_measures_anova_significance(df, variables_to_compare)
             if pvalue < p_value_threshold:
                 info = f"A priori test: Repeated measures ANOVA, p-value = {pvalue:.3f}"
                 results = get_repeated_measures_anova_posthoc_results(

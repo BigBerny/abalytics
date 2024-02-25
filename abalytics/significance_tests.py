@@ -46,7 +46,11 @@ class PosthocResults(BaseModel):
     significant_results: List[PosthocResult] = []
 
     def add_result(
-        self, analysis_method: str, result_pretty_text: str, p_value: float, groups_info: List[dict]
+        self,
+        analysis_method: str,
+        result_pretty_text: str,
+        p_value: float,
+        groups_info: List[dict],
     ):
         groups = [GroupResult(**group) for group in groups_info]
         result = PosthocResult(
@@ -129,7 +133,9 @@ def get_chi_square_posthoc_results(
                 reverse=True,
             )
             result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.1f}%) > {groups_info[1]['name']} ({groups_info[1]['mean']:.1f}%)"
-            posthoc_results.add_result("Chi-square", result_pretty_text, p_value, groups_info)
+            posthoc_results.add_result(
+                "Chi-square", result_pretty_text, p_value, groups_info
+            )
 
     # Apply Bonferroni correction if there are any p-values to correct
     if p_values:
@@ -237,7 +243,9 @@ def get_games_howell_posthoc_results(
             reverse=True,
         )
         result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
-        posthoc_results.add_result("Games-Howell", result_pretty_text, row["pval"], groups_info)
+        posthoc_results.add_result(
+            "Games-Howell", result_pretty_text, row["pval"], groups_info
+        )
 
     return posthoc_results
 
@@ -331,7 +339,9 @@ def get_tukeyhsd_posthoc_results(
             reverse=True,
         )
         result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
-        posthoc_results.add_result("Tukey HSD", result_pretty_text, row["p-adj"], groups_info)
+        posthoc_results.add_result(
+            "Tukey HSD", result_pretty_text, row["p-adj"], groups_info
+        )
 
     return posthoc_results
 
@@ -389,7 +399,9 @@ def get_dunn_posthoc_results(
                 )
 
                 result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
-                posthoc_results.add_result("Dunn", result_pretty_text, p_value, groups_info)
+                posthoc_results.add_result(
+                    "Dunn", result_pretty_text, p_value, groups_info
+                )
 
     return posthoc_results
 
@@ -435,7 +447,9 @@ def get_mcnemar_results(
             # Format the result text
             result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
             # Add the result to posthoc results
-            posthoc_results.add_result("McNemar", result_pretty_text, p_value, groups_info)
+            posthoc_results.add_result(
+                "McNemar", result_pretty_text, p_value, groups_info
+            )
 
     return posthoc_results
 
@@ -515,7 +529,12 @@ def get_repeated_measures_anova_posthoc_results(
             # Sort groups by mean for consistent presentation
             groups_info.sort(key=lambda x: x["mean"], reverse=True)
             result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
-            posthoc_results.add_result("Repeated Measures ANOVA", result_pretty_text, p_val_corrected, groups_info)
+            posthoc_results.add_result(
+                "Repeated Measures ANOVA",
+                result_pretty_text,
+                p_val_corrected,
+                groups_info,
+            )
 
     return posthoc_results
 
@@ -615,6 +634,8 @@ def get_nemenyi_results(
             groups_info.sort(key=lambda x: x["mean"], reverse=True)
 
             result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
-            posthoc_results.add_result("Nemenyi", result_pretty_text, posthoc_p_value, groups_info)
+            posthoc_results.add_result(
+                "Nemenyi", result_pretty_text, posthoc_p_value, groups_info
+            )
 
     return posthoc_results

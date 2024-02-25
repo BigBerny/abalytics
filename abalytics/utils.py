@@ -25,6 +25,7 @@ def format_results_as_table(
     identifiers_list: Optional[List[dict]] = None,
     show_only_significant_results: bool = False,
     show_details: bool = False,
+    output_format: str = "simple",
 ) -> str:
     """
     Returns a text with the results of the statistical significance tests.
@@ -35,6 +36,7 @@ def format_results_as_table(
     identifiers (list of str, optional): A list of strings that are to be used for identifying the data. Defaults to [].
     show_only_significant_results (bool, optional): A boolean flag indicating if only significant results should be shown. Defaults to False.
     show_details (bool, optional): A boolean flag indicating if the details of the statistical tests should be shown. Defaults to False.
+    output_format (str, optional): A string indicating the format of the output. Defaults to "simple". Checl the tabulate documentation: https://github.com/astanin/python-tabulate#table-format
 
     Returns:
     str: A formatted text string with the results of the statistical significance tests.
@@ -45,7 +47,6 @@ def format_results_as_table(
         ), "The number of identifiers must match the number of results."
     else:
         identifiers_list = [{} for _ in range(len(abalytics_results))]
-
 
     output_results = []
 
@@ -64,7 +65,7 @@ def format_results_as_table(
                 row = identifiers_list[idx].copy()
                 row["n"] = sample_size
                 row["Result"] = result.result_pretty_text
-                row["p-value"] = round(result.p_value,3)
+                row["p-value"] = result.p_value  # round(result.p_value,3)
                 if show_details:
                     row["Analysis method"] = result.analysis_method
                     if info:
@@ -76,9 +77,12 @@ def format_results_as_table(
         elif info:
             row = identifiers_list[idx]
             row["n"] = sample_size
+            row["Result"] = None
+            row["p-value"] = None
             row["info"] = info
+            if show_details and a_priori_test:
+                row["A priori test"] = a_priori_test
             output_results.append(row)
 
-    table = tabulate(output_results, headers="keys")
+    table = tabulate(output_results, headers="keys", floatfmt=".3f", tablefmt=output_format)
     return table
-

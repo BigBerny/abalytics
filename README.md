@@ -108,9 +108,23 @@ pretty_text = format_results_as_table(
 )
 print(pretty_text)
 ```
-Executing this code will output a neatly formatted table displaying the outcomes of the statistical significance tests. The table includes the sample size, indicators for Levene's test and Gaussian distribution, and the test results.
+Executing this code will output a neatly formatted table displaying the outcomes of the statistical significance tests. The table includes the sample size and the test results. Optionally, you can set `show_details` to `True` to include additional details such as the a priori and posthoc tests used. By default, only the significant results are displayed. This can be changed by setting `show_only_significant_results` to `False`.
 
-A further example of how to use ABalytics can be found in `examples/example.py`.
+Example output:
+```
+Test name             Channel         n  Result                                              p-value
+--------------------  ----------  -----  ------------------------------------------------  ---------
+A/B Test 1            Mobile       5009  new_cta_1 (0.16) > new_cta_2 (0.15)                   0.007
+A/B Test 1            Tablet       2887  new_cta_1 (0.22) > new_cta_2 (0.20)                   0.000
+A/B Test 1            Tablet       2887  new_cta_1 (0.22) > old_implementation (0.20)          0.005
+A/B Test 1            Desktop     20014  new_cta_1 (0.18) > new_cta_2 (0.17)                   0.000
+A/B Test 1            Desktop     20014  new_cta_1 (0.18) > old_implementation (0.17)          0.000
+A/B Test 2            Mobile        268  new_cta_1 (0.10) > new_cta_2 (0.06)                   0.006
+A/B Test 2            Mobile        268  new_cta_1 (0.10) > old_implementation (0.06)          0.014
+A/B Test 2            Desktop      5609  new_cta_1 (0.13) > new_cta_2 (0.12)                   0.025
+```
+
+Further examples of how to use ABalytics can be found in `examples/example.py`.
 
 ## Contributing
 

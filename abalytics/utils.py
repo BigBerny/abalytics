@@ -64,7 +64,7 @@ def format_results_as_table(
                 row = identifiers_list[idx].copy()
                 row["n"] = sample_size
                 row["Result"] = result.result_pretty_text
-                row["p-value"] = result.p_value  # round(result.p_value,3)
+                row["p-value"] = result.p_value
                 if show_details:
                     row["Analysis method"] = result.analysis_method
                     if info:

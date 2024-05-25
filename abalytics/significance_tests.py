@@ -242,7 +242,7 @@ def get_games_howell_posthoc_results(
             key=lambda x: x["mean"],
             reverse=True,
         )
-        result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
+        result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.3f})"
         posthoc_results.add_result(
             "Games-Howell", result_pretty_text, row["pval"], groups_info
         )
@@ -338,7 +338,7 @@ def get_tukeyhsd_posthoc_results(
             key=lambda x: x["mean"],
             reverse=True,
         )
-        result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
+        result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.3f})"
         posthoc_results.add_result(
             "Tukey HSD", result_pretty_text, row["p-adj"], groups_info
         )
@@ -398,7 +398,7 @@ def get_dunn_posthoc_results(
                     reverse=True,
                 )
 
-                result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
+                result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.3f})"
                 posthoc_results.add_result(
                     "Dunn", result_pretty_text, p_value, groups_info
                 )
@@ -445,7 +445,7 @@ def get_mcnemar_results(
             # Sort groups by mean for consistent presentation
             groups_info.sort(key=lambda x: x["mean"], reverse=True)
             # Format the result text
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.3f})"
             # Add the result to posthoc results
             posthoc_results.add_result(
                 "McNemar", result_pretty_text, p_value, groups_info
@@ -528,7 +528,7 @@ def get_repeated_measures_anova_posthoc_results(
             ]
             # Sort groups by mean for consistent presentation
             groups_info.sort(key=lambda x: x["mean"], reverse=True)
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.3f})"
             posthoc_results.add_result(
                 "Repeated Measures ANOVA",
                 result_pretty_text,
@@ -576,7 +576,7 @@ def get_wilcoxon_results(
     ]
     groups_info.sort(key=lambda x: x["mean"], reverse=True)
 
-    result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
+    result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.3f})"
     posthoc_results.add_result("Wilcoxon", result_pretty_text, p_value, groups_info)
 
     return p_value, posthoc_results
@@ -633,7 +633,7 @@ def get_nemenyi_results(
             ]
             groups_info.sort(key=lambda x: x["mean"], reverse=True)
 
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.2f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.2f})"
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.3f})"
             posthoc_results.add_result(
                 "Nemenyi", result_pretty_text, posthoc_p_value, groups_info
             )

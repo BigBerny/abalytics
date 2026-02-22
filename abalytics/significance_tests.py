@@ -315,9 +315,10 @@ def get_tukeyhsd_posthoc_results(
         df.groupby(group_column)[variable].agg(["mean", "median", "size"]).reset_index()
     )
 
-    significant_results = tukey._results_df[tukey._results_df["reject"]]
-    for _, row in significant_results.iterrows():
-        group_a, group_b = row["group1"], row["group2"]
+    pairs = list(combinations(tukey.groupsunique, 2))
+    for i, (group_a, group_b) in enumerate(pairs):
+        if not tukey.reject[i]:
+            continue
         group_a_stats = group_stats.loc[group_stats[group_column] == group_a].iloc[0]
         group_b_stats = group_stats.loc[group_stats[group_column] == group_b].iloc[0]
         groups_info = sorted(
@@ -340,7 +341,7 @@ def get_tukeyhsd_posthoc_results(
         )
         result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.3f})"
         posthoc_results.add_result(
-            "Tukey HSD", result_pretty_text, row["p-adj"], groups_info
+            "Tukey HSD", result_pretty_text, tukey.pvalues[i], groups_info
         )
 
     return posthoc_results

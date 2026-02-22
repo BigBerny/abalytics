@@ -10,11 +10,11 @@ setup(
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     install_requires=[
-        'pandas>=1.5.2',
-        'scipy>=1.10.1',
-        'statsmodels>=0.14.1',
-        'scikit-posthocs>=0.8.1',
-        'pingouin>=0.5.4',
+        'pandas>=2.2.0',
+        'scipy>=1.12.0',
+        'statsmodels>=0.14.6',
+        'scikit-posthocs>=0.12.0',
+        'pingouin>=0.5.5',
         'tabulate>=0.9.0'
     ],
     python_requires='>=3.8',

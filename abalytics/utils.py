@@ -35,7 +35,7 @@ def format_results_as_table(
     identifiers (list of str, optional): A list of strings that are to be used for identifying the data. Defaults to [].
     show_only_significant_results (bool, optional): A boolean flag indicating if only significant results should be shown. Defaults to False.
     show_details (bool, optional): A boolean flag indicating if the details of the statistical tests should be shown. Defaults to False.
-    output_format (str, optional): A string indicating the format of the output. Defaults to "simple". Checl the tabulate documentation: https://github.com/astanin/python-tabulate#table-format
+    output_format (str, optional): A string indicating the format of the output. Defaults to "simple". Check the tabulate documentation: https://github.com/astanin/python-tabulate#table-format
 
     Returns:
     str: A formatted text string with the results of the statistical significance tests.

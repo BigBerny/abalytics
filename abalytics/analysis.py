@@ -1,3 +1,4 @@
+import warnings
 from typing import Optional, List
 
 import pandas as pd
@@ -8,6 +9,7 @@ from .significance_tests import (
     is_numeric,
     is_levene_significant,
     is_gaussian,
+    are_differences_gaussian,
     get_chi_square_significance,
     get_chi_square_posthoc_results,
     get_welch_anova_significance,
@@ -16,6 +18,7 @@ from .significance_tests import (
     get_games_howell_posthoc_results,
     get_tukeyhsd_posthoc_results,
     get_dunn_posthoc_results,
+    get_cochrans_q_significance,
     get_mcnemar_results,
     get_repeated_measures_anova_significance,
     get_repeated_measures_anova_posthoc_results,
@@ -83,24 +86,27 @@ def analyze_independent_groups(
         - gaussian_flag: A boolean flag indicating if the data has a Gaussian distribution.
     """
     if p_value_threshold > 0.05:
-        print(
-            "Warning: p_value_threshold is set to a value higher than the conventional alpha level of 0.05."
+        warnings.warn(
+            "p_value_threshold is set to a value higher than the conventional alpha level of 0.05.",
+            UserWarning,
+            stacklevel=2,
         )
 
     if variable_to_analyze not in df.columns or group_column not in df.columns:
-        print(
-            f"Both columns {variable_to_analyze} and {group_column} have to be present in the DataFrame."
+        raise ValueError(
+            f"Both columns '{variable_to_analyze}' and '{group_column}' must be present in the DataFrame."
         )
-        return None
 
     df = df.dropna(subset=[variable_to_analyze])
     sample_size = len(df)
     pvalue = None
     info = None
     a_priori_test = None
+    results = None
     dichotomous_flag = False
     levene_flag = None
     gaussian_flag = None
+
     # Check if any group has less than the minimum sample size
     if (
         df.groupby(group_column)[variable_to_analyze]
@@ -109,8 +115,8 @@ def analyze_independent_groups(
     ):
         info = "not enough data"
     # Check if the variable is dichotomous (e.g. boolean)
-    elif dichotomous_flag := is_dichotomous(df, variable_to_analyze):
-        # Perform chi-square test
+    elif is_dichotomous(df, variable_to_analyze):
+        dichotomous_flag = True
         pvalue = get_chi_square_significance(df, group_column, variable_to_analyze)
         a_priori_test = f"Chi-square, p-value = {pvalue:.3f}"
         if pvalue < p_value_threshold:
@@ -118,29 +124,39 @@ def analyze_independent_groups(
                 df, group_column, variable_to_analyze, p_value_threshold
             )
     elif is_numeric(df, variable_to_analyze):
-        # Check homogeneity of variances. If significant, use non-parametric tests
-        if levene_flag := is_levene_significant(
-            df, group_column, variable_to_analyze, p_value_threshold
-        ):
-            pvalue = get_welch_anova_significance(df, group_column, variable_to_analyze)
-            a_priori_test = f"Welch's ANOVA, p-value = {pvalue:.3f}"
-            if pvalue < p_value_threshold:
-                results = get_games_howell_posthoc_results(
-                    df, group_column, variable_to_analyze, p_value_threshold
-                )
-        # Check if the data has Gaussian distribution, if not use non-parametric tests
-        elif gaussian_flag := is_gaussian(
+        # Step 1: Check normality first
+        gaussian_flag = is_gaussian(
             df, variable_to_analyze, p_value_threshold, group_column
-        ):
-            pvalue = get_oneway_anova_significance(
-                df, group_column, variable_to_analyze
+        )
+
+        if gaussian_flag:
+            # Data is normal — check variance homogeneity
+            levene_flag = is_levene_significant(
+                df, group_column, variable_to_analyze, p_value_threshold
             )
-            a_priori_test = f"One-way ANOVA, p-value = {pvalue:.3f}"
-            if pvalue < p_value_threshold:
-                results = get_tukeyhsd_posthoc_results(
-                    df, group_column, variable_to_analyze, p_value_threshold
+
+            if levene_flag:
+                # Normal but unequal variances — Welch's ANOVA + Games-Howell
+                pvalue = get_welch_anova_significance(
+                    df, group_column, variable_to_analyze
                 )
+                a_priori_test = f"Welch's ANOVA, p-value = {pvalue:.3f}"
+                if pvalue < p_value_threshold:
+                    results = get_games_howell_posthoc_results(
+                        df, group_column, variable_to_analyze, p_value_threshold
+                    )
+            else:
+                # Normal and equal variances — One-way ANOVA + Tukey HSD
+                pvalue = get_oneway_anova_significance(
+                    df, group_column, variable_to_analyze
+                )
+                a_priori_test = f"One-way ANOVA, p-value = {pvalue:.3f}"
+                if pvalue < p_value_threshold:
+                    results = get_tukeyhsd_posthoc_results(
+                        df, group_column, variable_to_analyze, p_value_threshold
+                    )
         else:
+            # Non-normal — non-parametric regardless of variance
             pvalue = get_kruskal_wallis_significance(
                 df, group_column, variable_to_analyze
             )
@@ -150,18 +166,16 @@ def analyze_independent_groups(
                     df, group_column, variable_to_analyze, p_value_threshold
                 )
     else:
-        print("Variable has to be dichotomous (e.g. boolean) or numeric")
-        info = "Variable has to be dichotomous (e.g. boolean) or numeric"
+        raise ValueError(
+            f"Variable '{variable_to_analyze}' must be dichotomous (e.g. boolean) or numeric."
+        )
 
     # If no results were found, return a message
-    if not "results" in locals() or len(results.significant_results) == 0:
+    if results is None or len(results.significant_results) == 0:
         if pvalue is not None:
-            info = f"n.s. (p={pvalue:.3f})"
-    # If results were found, return them
-    if "results" in locals():
-        significant_results = results.significant_results
-    else:
-        significant_results = []
+            info = f"not significant (p={pvalue:.3f})"
+
+    significant_results = results.significant_results if results else []
 
     return AnalysisResults(
         significant_results=significant_results,
@@ -199,21 +213,25 @@ def analyze_dependent_groups(
         - gaussian_flag: A boolean flag indicating if the data has a Gaussian distribution.
     """
     if p_value_threshold > 0.05:
-        print(
-            "Warning: p_value_threshold is set to a value higher than the conventional alpha level of 0.05."
+        warnings.warn(
+            "p_value_threshold is set to a value higher than the conventional alpha level of 0.05.",
+            UserWarning,
+            stacklevel=2,
         )
 
     missing_columns = [
         variable for variable in variables_to_compare if variable not in df.columns
     ]
     if missing_columns:
-        print(f"Columns not found in DataFrame: {', '.join(missing_columns)}")
-        return None
+        raise ValueError(
+            f"Columns not found in DataFrame: {', '.join(missing_columns)}"
+        )
 
     df = df.dropna(subset=variables_to_compare)
     sample_size = len(df)
     pvalue = None
     info = None
+    a_priori_test = None
     dichotomous_flag = False
     levene_flag = False
     gaussian_flag = False
@@ -225,19 +243,29 @@ def analyze_dependent_groups(
     # Check if the variables are dichotomous (e.g. boolean)
     elif all(is_dichotomous(df, variable) for variable in variables_to_compare):
         dichotomous_flag = True
-        # Perform McNemar's test or its extension for more than two groups
-        pvalue, results = get_mcnemar_results(
+        if len(variables_to_compare) > 2:
+            # Use Cochran's Q as omnibus test, then McNemar posthoc
+            pvalue = get_cochrans_q_significance(df, variables_to_compare)
+            a_priori_test = f"Cochran's Q, p-value = {pvalue:.3f}"
+            if pvalue < p_value_threshold:
+                _, results = get_mcnemar_results(
+                    df, variables_to_compare, p_value_threshold
+                )
+        else:
+            # Two variables: McNemar directly
+            pvalue, results = get_mcnemar_results(
+                df, variables_to_compare, p_value_threshold
+            )
+            a_priori_test = f"McNemar, p-value = {pvalue:.3f}"
+    elif all(is_numeric(df, variable) for variable in variables_to_compare):
+        # Check if pairwise differences follow a Gaussian distribution
+        gaussian_flag = are_differences_gaussian(
             df, variables_to_compare, p_value_threshold
         )
-    elif all(is_numeric(df, variable) for variable in variables_to_compare):
-        # Check if the data has Gaussian distribution, if not use non-parametric tests
-        if gaussian_flag := all(
-            is_gaussian(df, variable, p_value_threshold)
-            for variable in variables_to_compare
-        ):
+        if gaussian_flag:
             pvalue = get_repeated_measures_anova_significance(df, variables_to_compare)
+            a_priori_test = f"Repeated measures ANOVA, p-value = {pvalue:.3f}"
             if pvalue < p_value_threshold:
-                info = f"A priori test: Repeated measures ANOVA, p-value = {pvalue:.3f}"
                 results = get_repeated_measures_anova_posthoc_results(
                     df, variables_to_compare, p_value_threshold
                 )
@@ -245,27 +273,30 @@ def analyze_dependent_groups(
             pvalue, results = get_wilcoxon_results(
                 df, variables_to_compare, p_value_threshold
             )
+            a_priori_test = f"Wilcoxon, p-value = {pvalue:.3f}"
         else:
             pvalue = get_friedman_significance(df, variables_to_compare)
+            a_priori_test = f"Friedman, p-value = {pvalue:.3f}"
             if pvalue < p_value_threshold:
-                info = f"A priori test: Friedman, p-value = {pvalue:.3f}"
                 results = get_nemenyi_results(
                     df, variables_to_compare, p_value_threshold
                 )
     else:
-        print("All variables have to be dichotomous (e.g. boolean) or numeric")
-        info = "All variables have to be dichotomous (e.g. boolean) or numeric"
+        raise ValueError(
+            "All variables must be dichotomous (e.g. boolean) or numeric."
+        )
 
     # If no results were found, return a message
     if not results or len(results.significant_results) == 0:
         if pvalue is not None:
             info = f"not significant (p={pvalue:.3f})"
-    # If results were found, return them
+
     significant_results = results.significant_results if results else []
 
     return AnalysisResults(
         significant_results=significant_results,
         info=info,
+        a_priori_test=a_priori_test,
         sample_size=sample_size,
         dichotomous_flag=dichotomous_flag,
         levene_flag=levene_flag,

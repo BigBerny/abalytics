@@ -5,19 +5,19 @@ from typing import List, Optional
 from typing import Tuple
 
 import pandas as pd
-from pingouin import pairwise_gameshowell, welch_anova
+from pingouin import pairwise_gameshowell, rm_anova, welch_anova
 from pydantic import BaseModel
 from scikit_posthocs import posthoc_dunn, posthoc_nemenyi_friedman
 from scipy import stats
 from scipy.stats import (
     normaltest,
     chi2_contingency,
+    fisher_exact,
     wilcoxon,
     friedmanchisquare,
 )
 from statsmodels.sandbox.stats.multicomp import multipletests
-from statsmodels.stats.anova import AnovaRM
-from statsmodels.stats.contingency_tables import mcnemar
+from statsmodels.stats.contingency_tables import cochrans_q, mcnemar
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from statsmodels.stats.proportion import proportions_ztest
 
@@ -79,21 +79,46 @@ def is_gaussian(
     p_value_threshold: float,
     group_column: str = None,
 ) -> bool:
-    """Check if a variable or grouped variables in a DataFrame follow a Gaussian distribution."""
+    """Check if a variable or grouped variables in a DataFrame follow a Gaussian distribution.
+    Returns False for samples with n < 20 as a conservative policy choice:
+    normality tests are unreliable with small samples, so we default to non-parametric."""
+    MIN_NORMALTEST_N = 20
+
     if group_column:
-        return all(
-            normaltest(df[df[group_column] == group][variable])[1] >= p_value_threshold
-            for group in df[group_column].unique()
-        )
-    return normaltest(df[variable])[1] >= p_value_threshold
+        for group in df[group_column].unique():
+            group_data = df[df[group_column] == group][variable].dropna()
+            if len(group_data) < MIN_NORMALTEST_N:
+                return False
+            if normaltest(group_data)[1] < p_value_threshold:
+                return False
+        return True
+
+    data = df[variable].dropna()
+    if len(data) < MIN_NORMALTEST_N:
+        return False
+    return normaltest(data)[1] >= p_value_threshold
 
 
 def get_chi_square_significance(
     df: pd.DataFrame, group_column: str, variable: str
 ) -> float:
-    """Calculate the chi-square test significance for a given variable and group."""
+    """Calculate the chi-square test significance for a given variable and group.
+    Falls back to Fisher's exact test for 2x2 tables with expected frequencies < 5."""
     contingency_table = pd.crosstab(df[group_column], df[variable])
-    return chi2_contingency(contingency_table)[1]
+    chi2, p_value, dof, expected_freq = chi2_contingency(contingency_table)
+
+    if not (expected_freq >= 5).all():
+        if contingency_table.shape == (2, 2):
+            _, p_value = fisher_exact(contingency_table)
+        else:
+            import logging
+
+            logging.warning(
+                "Chi-square expected frequencies < 5 in some cells. "
+                "Results may be unreliable. Consider collecting more data."
+            )
+
+    return p_value
 
 
 def get_chi_square_posthoc_results(
@@ -105,15 +130,21 @@ def get_chi_square_posthoc_results(
     group_combinations = list(combinations(contingency_table.index, 2))
     p_values = []
 
-    # Determine whether to use True/False or 0/1 based on the columns present in the contingency table
-    true_or_one = 1 if 1 in contingency_table.columns else True
+    # Determine the "positive" column dynamically
+    truthy_values = [True, 1, 1.0, "true", "True", "yes", "Yes", "Y", "y"]
+    positive_col = None
+    for col in contingency_table.columns:
+        if col in truthy_values:
+            positive_col = col
+            break
+    if positive_col is None:
+        # Fallback: use the column with the higher overall count
+        positive_col = contingency_table.sum().idxmax()
 
     for group_a, group_b in group_combinations:
-        if true_or_one not in contingency_table.columns:
-            continue
         count = [
-            contingency_table.loc[group_a, true_or_one],
-            contingency_table.loc[group_b, true_or_one],
+            contingency_table.loc[group_a, positive_col],
+            contingency_table.loc[group_b, positive_col],
         ]
         nobs = [
             contingency_table.loc[group_a].sum(),
@@ -147,6 +178,23 @@ def get_chi_square_posthoc_results(
         ]
 
     return posthoc_results
+
+
+def are_differences_gaussian(
+    df: pd.DataFrame, variables: List[str], p_value_threshold: float
+) -> bool:
+    """Check if the pairwise differences between variables follow a Gaussian distribution.
+    This is the correct assumption to test for repeated measures ANOVA."""
+    MIN_NORMALTEST_N = 20
+    for v1, v2 in combinations(variables, 2):
+        diff = df[v1] - df[v2]
+        diff = diff.dropna()
+        if len(diff) < MIN_NORMALTEST_N:
+            return False
+        _, p = normaltest(diff)
+        if p < p_value_threshold:
+            return False
+    return True
 
 
 def is_levene_significant(
@@ -395,16 +443,33 @@ def get_dunn_posthoc_results(
                             "median": group_b_stats["median"],
                         },
                     ],
-                    key=lambda x: x["mean"],
+                    key=lambda x: x["median"],
                     reverse=True,
                 )
 
-                result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.3f})"
+                result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['median']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['median']:.3f})"
                 posthoc_results.add_result(
                     "Dunn", result_pretty_text, p_value, groups_info
                 )
 
     return posthoc_results
+
+
+def get_cochrans_q_significance(
+    df: pd.DataFrame, variables_to_compare: List[str]
+) -> float:
+    """Performs Cochran's Q test as an omnibus test for >2 dependent dichotomous variables.
+
+    Parameters:
+    - df (pd.DataFrame): The dataframe containing the data.
+    - variables_to_compare (List[str]): The column names of dichotomous variables.
+
+    Returns:
+    - float: The p-value from Cochran's Q test.
+    """
+    data = df[variables_to_compare].values.astype(int)
+    result = cochrans_q(data)
+    return result.pvalue
 
 
 def get_mcnemar_results(
@@ -423,13 +488,19 @@ def get_mcnemar_results(
     - Tuple[float, PosthocResults]: A tuple containing the p-value of the McNemar's test and the posthoc results.
     """
     posthoc_results = PosthocResults()
+    p_values = []
+
     # Iterate over all pairs of variables to compare
     for var1, var2 in combinations(variables_to_compare, 2):
         # Create a contingency table for the pair of variables
         contingency_table = pd.crosstab(df[var1], df[var2])
-        # Perform McNemar's test
-        result = mcnemar(contingency_table, exact=False)
+        # Use exact test when discordant cell counts are small
+        b = contingency_table.iloc[0, 1]
+        c = contingency_table.iloc[1, 0]
+        use_exact = (b + c) < 25
+        result = mcnemar(contingency_table, exact=use_exact)
         p_value = result.pvalue
+        p_values.append(p_value)
 
         # If the result is significant, add it to the posthoc results
         if p_value < p_value_threshold:
@@ -452,7 +523,15 @@ def get_mcnemar_results(
                 "McNemar", result_pretty_text, p_value, groups_info
             )
 
-    return posthoc_results
+    # Apply Bonferroni correction for multiple pairwise comparisons
+    if len(p_values) > 1:
+        corrected_alpha = p_value_threshold / len(p_values)
+        posthoc_results.significant_results = [
+            r for r in posthoc_results.significant_results if r.p_value < corrected_alpha
+        ]
+
+    omnibus_pvalue = min(p_values) if p_values else 1.0
+    return omnibus_pvalue, posthoc_results
 
 
 def get_repeated_measures_anova_significance(
@@ -460,6 +539,7 @@ def get_repeated_measures_anova_significance(
 ) -> float:
     """
     Calculates the significance of differences between conditions using repeated measures ANOVA.
+    Applies Greenhouse-Geisser correction when sphericity is violated.
 
     Parameters:
     - df (pd.DataFrame): The dataframe containing the data.
@@ -477,11 +557,22 @@ def get_repeated_measures_anova_significance(
         value_name="value",
     )
     df_long.rename(columns={"index": "subject_id"}, inplace=True)
-    # Perform repeated measures ANOVA
-    aovrm = AnovaRM(df_long, "value", "subject_id", within=["conditions"])
-    anova_results = aovrm.fit()
-    # Extract and return the p-value
-    p_value = anova_results.anova_table["Pr > F"]["conditions"]
+
+    # Use pingouin's rm_anova which handles sphericity testing and GG correction
+    aov = rm_anova(
+        data=df_long,
+        dv="value",
+        within="conditions",
+        subject="subject_id",
+        correction=True,
+    )
+
+    # Use GG-corrected p-value if sphericity is violated, otherwise uncorrected
+    if len(variables_to_compare) > 2 and not aov["sphericity"].iloc[0]:
+        p_value = aov["p-GG-corr"].iloc[0]
+    else:
+        p_value = aov["p-unc"].iloc[0]
+
     return p_value
 
 
@@ -575,10 +666,11 @@ def get_wilcoxon_results(
         }
         for var in variables_to_compare
     ]
-    groups_info.sort(key=lambda x: x["mean"], reverse=True)
+    groups_info.sort(key=lambda x: x["median"], reverse=True)
 
-    result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.3f})"
-    posthoc_results.add_result("Wilcoxon", result_pretty_text, p_value, groups_info)
+    if p_value < p_value_threshold:
+        result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['median']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['median']:.3f})"
+        posthoc_results.add_result("Wilcoxon", result_pretty_text, p_value, groups_info)
 
     return p_value, posthoc_results
 
@@ -632,9 +724,9 @@ def get_nemenyi_results(
                 }
                 for var in [var1, var2]
             ]
-            groups_info.sort(key=lambda x: x["mean"], reverse=True)
+            groups_info.sort(key=lambda x: x["median"], reverse=True)
 
-            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['mean']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['mean']:.3f})"
+            result_pretty_text = f"{groups_info[0]['name']} ({groups_info[0]['median']:.3f}) > {groups_info[1]['name']} ({groups_info[1]['median']:.3f})"
             posthoc_results.add_result(
                 "Nemenyi", result_pretty_text, posthoc_p_value, groups_info
             )
